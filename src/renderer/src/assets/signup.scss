@@ -1,0 +1,204 @@
+$ruler: 14px;
+$color-red: #ae1100;
+$color-bg: #ebecf0;
+$color-shadow: #6c779e;
+$color-white: #fff;
+
+body,
+html {
+  background-color: $color-bg;
+}
+
+body,
+p,
+input,
+select,
+textarea,
+button {
+  font-family: "Montserrat", sans-serif;
+  letter-spacing: -0.2px;
+  font-size: $ruler;
+}
+
+div,
+p {
+  color: $color-shadow;
+  text-shadow: 1px 1px 1px $color-white;
+}
+
+form {
+  padding: $ruler;
+  width: $ruler * 20;
+  margin: 0 auto;
+}
+
+.segment {
+  padding: $ruler * 2 0;
+  text-align: center;
+}
+
+button,
+input {
+  border: 0;
+  outline: 0;
+  font-size: $ruler;
+  border-radius: $ruler * 20;
+  padding: $ruler;
+  background-color: $color-bg;
+  text-shadow: 1px 1px 0 $color-white;
+}
+
+label {
+  display: block;
+  margin-bottom: $ruler * 1.5;
+  width: 100%;
+}
+
+input {
+  margin-right: calc($ruler / 2);
+  box-shadow: inset 2px 2px 5px $color-shadow, inset -5px -5px 10px $color-white;
+  width: 100%;
+  box-sizing: border-box;
+  transition: all 0.2s ease-in-out;
+  appearance: none;
+  -webkit-appearance: none;
+
+  &:focus {
+    box-shadow: inset 1px 1px 2px $color-shadow,
+      inset -1px -1px 2px $color-white;
+  }
+}
+
+button {
+  color: #61677c;
+  font-weight: bold;
+  box-shadow: -5px -5px 20px $color-white, 5px 5px 20px $color-shadow;
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+  font-weight: 600;
+
+  &:hover {
+    box-shadow: -2px -2px 5px $color-white, 2px 2px 5px $color-shadow;
+  }
+
+  &:active {
+    box-shadow: inset 1px 1px 2px $color-shadow,
+      inset -1px -1px 2px $color-white;
+  }
+
+  .icon {
+    margin-right: calc($ruler / 2);
+  }
+
+  &.unit {
+    border-radius: calc($ruler / 2);
+    line-height: 0;
+    width: $ruler * 3;
+    height: $ruler * 3;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 calc($ruler / 2);
+    font-size: $ruler * 1.2;
+
+    .icon {
+      margin-right: 0;
+    }
+  }
+
+  &.red {
+    display: block;
+    width: 100%;
+    color: $color-red;
+  }
+}
+
+.input-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+
+  label {
+    margin: 0;
+    flex: 1;
+  }
+}
+/* 滚动条样式定制 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #bbbbbb;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #999999;
+}
+// 自定义添加样式
+.navigate {
+  display: flex;
+  align-items: center; /* 垂直居中 */
+  height: 120px; /* 固定高度 */
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.page-divider {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid #a71b1b;
+}
+
+.textarea-container {
+  display: flex; /* 启用 Flex 布局 */
+  gap: 10px; /* 左右容器间距 */
+  width: 98%;
+  // flex: 1; /* 占据剩余空间 */
+  overflow: hidden; /* 防止内部滚动影响整体布局 */
+  // height: 78vh;
+  height: calc(100vh - 160px);
+  margin: 10px auto;
+  // padding: 10px;
+  box-sizing: border-box;
+}
+
+.left-panel {
+  width: 250px; /* 固定宽度或可拖拽调整 */
+  flex-shrink: 0;
+  overflow-y: auto; /* 启用垂直滚动 */
+  padding: 5px; /* 可选：内容内边距 */
+  background: #f5f5f5; /* 可选背景色 */
+}
+
+.right-panel {
+  flex: 1; /* 占据剩余空间 */
+  // padding: 10px;
+  // overflow: auto;
+}
+
+.resizable-textarea {
+  width: 100%; /* 宽度随容器变化 */
+  height:95%;
+  max-width: 1590px;
+  // height: 100%; /* 宽度随容器变化 */
+  // min-height: 150px; /* 最小高度 */
+  resize: none; /* 禁用手动调整 */
+  padding: 10px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: auto; /* 内容溢出时显示滚动条 */
+}
+.vscode-editor {
+  width: 100%; /* 宽度随容器变化 */
+  height:95%;
+  max-width: 1590px;
+}
