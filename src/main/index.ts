@@ -99,6 +99,7 @@ function createWindow(): void {
 
 // 应用初始化完成后的配置
 app.whenReady().then(async () => {
+  // 添加自动更新
   // 设置Windows平台的应用用户模型ID
   electronApp.setAppUserModelId('com.electron')
 

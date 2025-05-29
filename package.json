@@ -1,7 +1,7 @@
 {
   "name": "hollysys",
   "version": "2.2.1",
-  "description": "这是一个HOLLYSYS的MACS软件的插件APP",
+  "description": "这是一个HOLLYSYS的MACS软件的辅助APP",
   "main": "./out/main/index.js",
   "author": "红烧肉",
   "scripts": {
