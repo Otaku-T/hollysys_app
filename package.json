@@ -15,7 +15,8 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
+    "build:test": "npm run build && electron-builder --win",
+    "build:win": "electron-builder --win --publish always",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux"
   },
@@ -29,7 +30,6 @@
     "fast-xml-parser": "^5.2.1",
     "monaco-editor": "^0.52.2",
     "pinia": "^3.0.2",
-    "update-electron-app": "^3.1.1",
     "vue-router": "^4.5.0",
     "xlsx": "^0.18.5"
   },
@@ -54,6 +54,11 @@
     "vue-tsc": "^2.2.8"
   },
   "build": {
+    "publish": {
+      "provider": "github",
+      "owner": "Otaku-T",
+      "repo": "hollysys_app"
+    },
     "win": {
       "target": [
         {
@@ -69,5 +74,9 @@
       "perMachine": true,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Otaku-T/hollysys_app.git"
   }
 }

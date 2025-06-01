@@ -96,21 +96,8 @@ function createWindow(): void {
     global.mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
 }
-
-// 应用初始化完成后的配置
-app.whenReady().then(async () => {
-  // 添加自动更新
-  // 设置Windows平台的应用用户模型ID
-  electronApp.setAppUserModelId('com.electron')
-
-  // 监听浏览器窗口创建事件，处理开发工具快捷键（仅开发环境）
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
-  })
-
-  // 创建主窗口
-  createWindow()
-
+// IPC通信接口合集
+function setupIpc(): void {
   // 调用组态IPC通信函数
   ipcMain.on('open-files-dialog', open_files_dialog)
   ipcMain.on('create_hollysys', create_hollysys)
@@ -139,6 +126,20 @@ app.whenReady().then(async () => {
   ipcMain.on('excel_split', async (_, excel_sRow) => {
     excel_split(excel_sRow)
   })
+}
+// 应用初始化完成后的配置
+app.whenReady().then(async () => {
+  // 创建主窗口
+  createWindow()
+  // 设置Windows平台的应用用户模型ID
+  electronApp.setAppUserModelId('com.electron')
+  // 监听浏览器窗口创建事件，处理开发工具快捷键（仅开发环境）
+  app.on('browser-window-created', (_, window) => {
+    optimizer.watchWindowShortcuts(window)
+  })
+
+  // 添加IPC通信接口
+  setupIpc()
   // macOS激活应用时重新创建窗口
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
