@@ -1,4 +1,4 @@
-import { dialog } from 'electron'
+import { dialog, shell } from 'electron'
 import { join, extname } from 'path'
 import * as fs from 'fs' // 新增同步方法导入
 import chokidar from 'chokidar'
@@ -140,7 +140,10 @@ export async function get_file_text(path: string): Promise<void> {
     const text = await fs.promises.readFile(path, 'utf-8')
     global.mainWindow.webContents.send('file-text', text)
   } else {
-    global.mainWindow.webContents.send('file-text', '无法以文本形式打开该文件')
+    // 使用系统默认程序打开文件
+    shell.openPath(path).catch((err) => {
+      console.error('打开文件失败:', err)
+    })
   }
   // console.log('text', text)
 }
@@ -512,7 +515,7 @@ export async function hollysysPOUExcel(): Promise<void> {
     // 生成 点名统计.xlsx 文件
     const worksheetData = [
       // 工作表表头
-      ['POU名', '点名']
+      ['POU名', '点名', '类型']
     ]
     for (const file of files) {
       const ext = extname(file).toLowerCase() // 获取小写扩展名
@@ -534,8 +537,16 @@ export async function hollysysPOUExcel(): Promise<void> {
       }
       // 获取XML文件中的点名数组内容
       const textContent = XmlContent?.textContent || []
+      // 获取XML文件中的点类型数组内容
+      const typeContent = XmlContent?.typeContent || []
       // 假设替换点名为空字符串
-      const newRows = textContent.map((originalName) => [file, originalName])
+      const newRows = textContent.map((originalName, index) => [
+        file,
+        originalName,
+        typeContent[index]
+      ])
+      // 假设替换点名为空字符串
+      // const newRows = textContent.map((originalName) => [file, originalName])
       // 拼接数组
       worksheetData.push(...newRows)
       // index++;         // 更新索引
@@ -825,7 +836,7 @@ async function createDirectory1(path1: string): Promise<void> {
 async function createDirectory2(path2: string): Promise<void> {
   try {
     // 创建设计文件夹
-    const pathlist2 = ['资料输入', 'IO清单输出', '网络结构', 'FAT报告', '联调报告']
+    const pathlist2 = ['IO清单输出', 'FAT报告', '联调报告']
     for (const paths of pathlist2) {
       const path = join(path2, paths)
       await fs.promises.mkdir(path, { recursive: true })
@@ -1811,12 +1822,15 @@ function excelToXmlContent(excel: ExcelContent): any {
             console.log('newJson[i][xml].textContent', ...excel.jsonData[i][j])
             const new_text = excel.jsonData[i][j]
             for (let e = 0; e < name_ext.length; e++) {
-              if (!excel.jsonData[i][j][e].includes(name_ext[e])) {
-                new_text[e] = new_text[e] + name_ext[e]
+              const cellValue = excel.jsonData[i][j][e]
+              // 确保cellValue是字符串类型
+              const currentCellStr = cellValue != null ? String(cellValue).trim() : ''
+              if (!currentCellStr.includes(name_ext[e])) {
+                new_text[e] = currentCellStr + name_ext[e]
               }
             }
             console.log('new', ...new_text)
-            newJson[i][xml].textContent.push(...excel.jsonData[i][j])
+            newJson[i][xml].textContent.push(...new_text)
             index += 1 //索引加一
           } else {
             //console.log('创建新POU');

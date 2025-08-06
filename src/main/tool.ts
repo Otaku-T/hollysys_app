@@ -35,6 +35,8 @@ export async function ops_tool(
     const GUIPath = join(__dirname, '../../resources', 'GUI.exe')
     // 构造 EXE 参数
     const args = [
+      '-m',
+      'ops',
       '-p',
       filePaths[0], // 路径参数
       '-l',
@@ -102,10 +104,21 @@ export async function excel_merge(excel_mRow: number, excel_mindex: number): Pro
 
     // 遍历工作表
     const sheetNames = workbook.worksheets.map((sheet) => sheet.name).slice(excel_mindex)
-
+    // console.log(sheetNames)
+    if (sheetNames.length === 0) {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '工作簿内没有工作表可处理！'
+      })
+      return
+    }
     for (const sheetName of sheetNames) {
+      // console.log(sheetName)
       const sourceSheet = workbook.getWorksheet(sheetName)
-
+      if (!sourceSheet) {
+        continue // 或者 throw new Error(`工作表 "${sheetName}" 不存在`)
+      }
       // 复制列宽
       sourceSheet?.columns.forEach((col, idx) => {
         mergedSheet.getColumn(idx + 1).width = col.width
@@ -116,17 +129,26 @@ export async function excel_merge(excel_mRow: number, excel_mindex: number): Pro
         sheetName === sheetNames[0]
           ? sourceSheet?.getRows(1, sourceSheet.rowCount)
           : sourceSheet?.getRows(excel_mRow + 1, sourceSheet.rowCount - excel_mRow)
+      if (rowsToProcess) {
+        // 添加数据并保留样式
+        rowsToProcess.forEach((sourceRow) => {
+          const newRow = mergedSheet.addRow(sourceRow.values)
 
-      // 添加数据并保留样式
-      rowsToProcess?.forEach((sourceRow) => {
-        const newRow = mergedSheet.addRow(sourceRow.values)
-
-        // 复制单元格样式
-        sourceRow.eachCell((cell, colNumber) => {
-          const newCell = newRow.getCell(colNumber)
-          newCell.style = JSON.parse(JSON.stringify(cell.style)) // 深拷贝样式
+          // 复制单元格样式
+          sourceRow.eachCell((cell, colNumber) => {
+            const newCell = newRow.getCell(colNumber)
+            // 棅式和值的处理
+            if (cell.type === ExcelJS.ValueType.Formula) {
+              // 重新设置公式而不是复制 style
+              newCell.value = { formula: cell.formula }
+            } else {
+              // 仅复制值和样式（不含公式）
+              newCell.value = cell.value
+              newCell.style = JSON.parse(JSON.stringify(cell.style))
+            }
+          })
         })
-      })
+      }
     }
 
     // 保存文件

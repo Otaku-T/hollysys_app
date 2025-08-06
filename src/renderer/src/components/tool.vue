@@ -37,6 +37,10 @@ function excel_merge(): void {
 function excel_split(): void {
   window.electron.ipcRenderer.send('excel_split', excel_sRow.value)
 }
+// 软件更新
+function checking_update(): void {
+  window.open('https://github.com/Otaku-T/hollysys_app/releases', '_blank') // 替换为你实际需要打开的URL
+}
 </script>
 <template>
   <span class="navigate">
@@ -46,6 +50,7 @@ function excel_split(): void {
     <button class="red" type="button" @click="excel_merge">EXCEL合</button>
     <button class="red" type="button" @click="excel_split">EXCEL拆</button>
     <button class="red" type="button" @click="ops_tool">OPS截屏</button>
+    <button class="red" type="button" @click="checking_update">更新</button>
   </span>
   <!-- 新增分割线 -->
   <div class="tool-container">

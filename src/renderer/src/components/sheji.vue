@@ -14,10 +14,13 @@ function login_home(): void {
   <span class="navigate">
     <!-- 按钮组在右侧 -->
     <button class="red" type="button" @click="login_home">主页</button>
-    <button class="red" type="button">IO输出</button>
-    <button class="red" type="button">网络结构</button>
-    <button class="red" type="button">FAT报告</button>
-    <button class="red" type="button">联调报告</button>
+    <button class="red" type="button">生成备用点</button>
+    <button class="red" type="button">回读数据库</button>
+    <button class="red" type="button">数据库</button>
+    <button class="red" type="button">接线表</button>
+    <button class="red" type="button">FAT文件</button>
+    <button class="red" type="button">机柜布置</button>
+    <button class="red" type="button">联调文件</button>
   </span>
   <!-- 新增分割线 -->
   <hr class="page-divider" />
