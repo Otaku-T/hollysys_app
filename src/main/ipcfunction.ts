@@ -142,7 +142,11 @@ export async function get_file_text(path: string): Promise<void> {
   } else {
     // 使用系统默认程序打开文件
     shell.openPath(path).catch((err) => {
-      console.error('打开文件失败:', err)
+      dialog.showMessageBox({
+        type: 'error',
+        title: '错误',
+        message: `打开失败:${(err as Error).message}`
+      })
     })
   }
   // console.log('text', text)
@@ -840,6 +844,19 @@ async function createDirectory2(path2: string): Promise<void> {
     for (const paths of pathlist2) {
       const path = join(path2, paths)
       await fs.promises.mkdir(path, { recursive: true })
+    }
+    // 复制IO清单.xlsm文件到目标目录
+    const stFilePath = join(__dirname, '../../resources', 'IO清单.xlsm')
+    const destFilePath = join(path2, 'IO清单.xlsm')
+    try {
+      await fs.promises.copyFile(stFilePath, destFilePath)
+    } catch (copyErr) {
+      // console.error(`文件复制失败: ${(copyErr as Error).message}`)
+      await dialog.showMessageBox({
+        type: 'error',
+        title: '文件复制错误',
+        message: `复制IO清单.xlsm文件失败:${(copyErr as Error).message}`
+      })
     }
   } catch (err) {
     await dialog.showMessageBox({
@@ -1819,7 +1836,7 @@ function excelToXmlContent(excel: ExcelContent): any {
               }
             }
             //添加点名
-            console.log('newJson[i][xml].textContent', ...excel.jsonData[i][j])
+            // console.log('newJson[i][xml].textContent', ...excel.jsonData[i][j])
             const new_text = excel.jsonData[i][j]
             for (let e = 0; e < name_ext.length; e++) {
               const cellValue = excel.jsonData[i][j][e]
@@ -1829,7 +1846,7 @@ function excelToXmlContent(excel: ExcelContent): any {
                 new_text[e] = currentCellStr + name_ext[e]
               }
             }
-            console.log('new', ...new_text)
+            // console.log('new', ...new_text)
             newJson[i][xml].textContent.push(...new_text)
             index += 1 //索引加一
           } else {

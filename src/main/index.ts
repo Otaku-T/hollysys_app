@@ -18,7 +18,14 @@ import {
   get_file_text,
   save_file_data
 } from './ipcfunction' // 引入新文件
-import { ops_tool, excel_merge, excel_split } from './tool' // 引入新文件
+import {
+  ops_tool,
+  excel_merge,
+  excel_split,
+  hollysysPOU6,
+  hollysysIOdata,
+  hollysysIOjxb
+} from './tool' // 引入新文件
 // 在入口文件中统一声明全局变量
 declare global {
   interface Window {
@@ -126,6 +133,9 @@ function setupIpc(): void {
   ipcMain.on('excel_split', async (_, excel_sRow) => {
     excel_split(excel_sRow)
   })
+  ipcMain.on('hollysysPOU6', hollysysPOU6)
+  ipcMain.on('hollysysIOdata', hollysysIOdata)
+  ipcMain.on('hollysysIOjxb', hollysysIOjxb)
 }
 // 应用初始化完成后的配置
 app.whenReady().then(async () => {

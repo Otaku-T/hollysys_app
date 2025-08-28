@@ -1,6 +1,6 @@
 # hollysys_app
 
-An Electron application with Vue and TypeScript
+该软件是一款为Hollysys工程项目提供便捷实施的工具。
 
 ## Recommended IDE Setup
 
@@ -8,27 +8,5 @@ An Electron application with Vue and TypeScript
 
 ## Project Setup
 
-### Install
-
-```bash
-$ npm install
-```
-
-### Development
-
-```bash
-$ npm run dev
-```
-
-### Build
-
-```bash
-# For windows
-$ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
-```
+**立即下载：**
+- [Windows 版本 (.exe)](https://github.com/Otaku-T/hollysys_app/releases/download/untagged-d54fd91e087639e6d645/hollysys-Setup-2.2.3.exe)

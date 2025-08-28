@@ -13,8 +13,9 @@ function handleNodeClick(node: DirectoryNode): void {
   node.expanded = !node.expanded
   // 可在此处添加文件预览/操作逻辑
 }
+// 文件点击  打开文件或返回文件内容
 function handleFileClick(node: DirectoryNode): void {
-  if (node.kind === 'directory') return
+  // if (node.kind === 'directory') return
   window.electron.ipcRenderer.send('get-file-text', node.path)
   window.electron.ipcRenderer.once('file-text', (_, text) => {
     tabsStore.addTab(node.name, text, node.path)
@@ -33,7 +34,7 @@ function handleFileClick(node: DirectoryNode): void {
     <span v-else class="icon file-icon">📄</span>
 
     <!-- 节点名称 -->
-    <span class="node-name" @click="() => handleFileClick(node)">
+    <span class="node-name" @dblclick="() => handleFileClick(node)">
       {{ node.name }}
     </span>
 

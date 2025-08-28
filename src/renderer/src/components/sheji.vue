@@ -9,15 +9,21 @@ const router = useRouter()
 function login_home(): void {
   router.push('/home')
 }
+// 生成IO数据库
+function hollysysIOdata(): void {
+  window.electron.ipcRenderer.send('hollysysIOdata')
+}
+// 生成IO接线表
+function hollysysIOjxb(): void {
+  window.electron.ipcRenderer.send('hollysysIOjxb')
+}
 </script>
 <template>
   <span class="navigate">
     <!-- 按钮组在右侧 -->
     <button class="red" type="button" @click="login_home">主页</button>
-    <button class="red" type="button">生成备用点</button>
-    <button class="red" type="button">回读数据库</button>
-    <button class="red" type="button">数据库</button>
-    <button class="red" type="button">接线表</button>
+    <button class="red" type="button" @click="hollysysIOdata">数据库</button>
+    <button class="red" type="button" @click="hollysysIOjxb">接线表</button>
     <button class="red" type="button">FAT文件</button>
     <button class="red" type="button">机柜布置</button>
     <button class="red" type="button">联调文件</button>
