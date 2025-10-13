@@ -22,6 +22,10 @@ function hollysysExcel(): void {
 function hollysysPID(): void {
   window.electron.ipcRenderer.send('hollysysPID')
 }
+// 读写替换表
+function hollysysRWexcel(): void {
+  window.electron.ipcRenderer.send('hollysysRWexcel')
+}
 // 替换POU
 function hollysysPOU(): void {
   window.electron.ipcRenderer.send('hollysysPOU')
@@ -58,6 +62,7 @@ function hollysysBF(): void {
     <button class="red" type="button" @click="hollysysDATA">数据分类</button>
     <button class="red" type="button" @click="hollysysExcel">更新表格</button>
     <button class="red" type="button" @click="hollysysPID">生成回路</button>
+    <button class="red" type="button" @click="hollysysRWexcel">读写替换表</button>
     <button class="red" type="button" @click="hollysysPOU">替换POU</button>
     <button class="red" type="button" @click="hollysysPOUExcel">POU变量表</button>
     <button class="red" type="button" @click="hollysysST">生成ST</button>

@@ -82,7 +82,29 @@ global.stopWatching = () => {
   global.chokidarWatchers.forEach((watcher) => watcher.close())
   global.chokidarWatchers = []
 }
-
+export async function test_sw(): Promise<void> {
+  try {
+    if (global.globalpaths) {
+      const excelpath = join(global.globalpaths[0], '组态')
+      generateExcelFilesPOU(excelpath)
+      await dialog.showMessageBox({
+        type: 'info',
+        title: '信息',
+        message: 'EXCEL更新成功!'
+      })
+    } else {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '请先选择要操作的文件夹！'
+      })
+    }
+  } catch (error) {
+    // 记录错误并重新抛出
+    console.error('测试错误:', error)
+    throw error
+  }
+}
 /**
  * 打开文件对话框并返回选中的目录结构
  * @returns {Promise<DirectoryNode[]>} 选中的目录结构数组，若用户取消则返回空数组
@@ -225,6 +247,11 @@ export async function create_hollysys(): Promise<void> {
     createDirectory1(path1)
     createDirectory2(path2)
     createDirectory3(path3)
+    await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '创建成功!'
+    })
   } else {
     await dialog.showMessageBox({
       type: 'question',
@@ -358,6 +385,142 @@ export async function hollysysPID(): Promise<void> {
     })
   }
 }
+// 读写替换表,相应IPC函数
+export async function hollysysRWexcel(): Promise<void> {
+  try {
+    const excelpath = join(global.globalpaths[0], '组态', '点名替换.xlsx')
+    const outputFilePath = join(global.globalpaths[0], '组态', '点名替换对应表.xlsx')
+    if (!excelpath) {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '请先生成点名替换表！'
+      })
+      return
+    }
+    // 选择替换表是读还是写
+    const RWexcel = await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '读写点名替换表?',
+      buttons: ['读替换表', '写替换表'], // 按钮顺序影响返回值
+      defaultId: 0, // 默认选中第一个按钮（是）
+      cancelId: 0 // 按ESC时视为取消
+    })
+    // 同步读取文件内容
+    const data = fs.readFileSync(excelpath) // 使用同步方法读取文件
+    // 解析 Excel 文件
+    const workbook = XLSX.read(data, { type: 'buffer' })
+    // 获取所有工作表的名称
+    const sheetName: string[] = workbook.SheetNames
+    const jsonData: string[] = [] // 使用 const 声明并初始化
+    if (RWexcel.response === 0) {
+      for (let i = 0; i < sheetName.length; i++) {
+        // 获取工作表数据
+        const worksheet = workbook.Sheets[sheetName[i]]
+        // 将工作表数据转换为二维数组
+        const sheetData: string[][] = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1
+        }) as string[][]
+        // 读取第一列内容(跳过标题行)
+        const firstColumn = sheetData
+          .slice(1)
+          .filter((row) => row.length > 0) // 过滤空行
+          .map((row) => row[0] ?? '') // 处理可能的空单元格
+        jsonData.push(...firstColumn)
+        //console.log(jsonData);
+      }
+      // 处理数据：去重并过滤纯数值
+      const processedData = Array.from(new Set(jsonData.map(String))).filter((str) => {
+        const trimmed = str.trim()
+        // 保留空字符串
+        if (trimmed === '') return true
+        // 检查是否为纯数值（可以转换为数字且转换后与原字符串一致）
+        const isPureNumber = !isNaN(Number(trimmed)) && String(Number(trimmed)) === trimmed
+        if (isPureNumber) return false
+        // 检查长度和字符集（仅小写字母）
+        return trimmed.length >= 6 && /^[0-9a-zA-Z._@[\]]+$/.test(trimmed)
+      })
+      const processedData2D = processedData.map((item) => [item]) // 关键修复：一维转二维
+      const worksheetData = [['变量名', '替换名'], ...processedData2D] // 直接合并二维数据
+      // 写入 Excel 文件
+      const outputWorkbook = XLSX.utils.book_new()
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData)
+      XLSX.utils.book_append_sheet(outputWorkbook, worksheet, '点名对应')
+      XLSX.writeFile(outputWorkbook, outputFilePath)
+      await dialog.showMessageBox({
+        type: 'info',
+        title: '信息',
+        message: '已读取点名替换表!'
+      })
+    } else {
+      // 同步读取文件内容
+      const outdata = fs.readFileSync(outputFilePath) // 使用同步方法读取文件
+      // 解析 Excel 文件
+      const outworkbook = XLSX.read(outdata, { type: 'buffer' })
+      // 获取工作表数据
+      const outworksheet = outworkbook.Sheets['点名对应']
+      const outsheetData: string[][] = XLSX.utils.sheet_to_json(outworksheet, {
+        header: 1
+      }) as string[][]
+      // console.log(outsheetData)
+      // 提取 outsheetData 第一列数据
+      const outsheetFirstColumnSet = outsheetData
+        .map((row) => row[0])
+        .filter((item) => item !== undefined && item !== '')
+      // 检查第二列（替换名列）是否完全为空（跳过标题行）
+      const hasNonEmptySecondColumn = outsheetData
+        .slice(1)
+        .some((row) => row.length > 1 && row[1] != null && row[1] !== '')
+      if (!hasNonEmptySecondColumn) {
+        dialog.showMessageBox({
+          type: 'warning',
+          title: '警告',
+          message: '替换名列全部为空,请检查Excel数据!'
+        })
+        return // 提前终止
+      }
+      //回写点名替换表
+      for (let i = 0; i < sheetName.length; i++) {
+        // 获取工作表数据
+        const worksheet = workbook.Sheets[sheetName[i]]
+        // 将工作表数据转换为二维数组
+        const sheetData: string[][] = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1
+        }) as string[][]
+        for (let id = 1; id < sheetData.length; id++) {
+          // 跳过标题行
+          const index = outsheetFirstColumnSet.findIndex((item) => item === sheetData[id][0])
+          if (index !== -1) {
+            sheetData[id] = outsheetData[index]
+          } else {
+            // 未找到匹配项，保持原样
+            sheetData[id] = Array(2).fill(sheetData[id])
+          }
+        }
+        // 将修改后的数据转换回工作表对象
+        const newWorksheet = XLSX.utils.aoa_to_sheet(sheetData)
+        // 更新工作簿中的工作表
+        workbook.Sheets[sheetName[i]] = newWorksheet
+        //console.log(jsonData);
+      }
+      // 保存修改后的工作簿到文件
+      XLSX.writeFile(workbook, excelpath) // 覆盖原文件
+      // 已填写点名替换表
+      await dialog.showMessageBox({
+        type: 'info',
+        title: '信息',
+        message: '已填写点名替换表!'
+      })
+    }
+  } catch (err) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: '错误',
+      message: `读写替换表出错:${(err as Error).message}`
+    })
+  }
+}
 // 替换POU,相应IPC函数
 export async function hollysysPOU(): Promise<void> {
   // 每次命令被执行时，此处的代码将被运行
@@ -396,8 +559,8 @@ export async function hollysysPOU(): Promise<void> {
       let xmlContent: XmlContent | null = null // 使用let并初始化;
       if (ext === '.xml') {
         xmlContent = getTextFromXml(folderPathXML)
-      } else if (ext === '.json') {
-        xmlContent = getTextFromJson(folderPathXML)
+        // } else if (ext === '.json') {    //M7没有json文件了
+        //   xmlContent = getTextFromJson(folderPathXML)
       } else {
         await dialog.showMessageBox({
           type: 'question',
@@ -422,11 +585,11 @@ export async function hollysysPOU(): Promise<void> {
                   xmlContent.textContent[j] = Exceldata?.jsonData[i][j + 1][k]
                 }
               } else {
-                // console.log('EXCEL数据与解析文件点名不匹配');
+                // console.log(xmlContent.textContent[j], '++++', Exceldata?.jsonData[i][j + 1][k - 1])
                 await dialog.showMessageBox({
                   type: 'question',
                   title: '问题',
-                  message: 'EXCEL数据与解析文件点名不匹配'
+                  message: xmlContent.textContent[j] + '检查数据'
                 })
               }
             }
@@ -529,9 +692,9 @@ export async function hollysysPOUExcel(): Promise<void> {
       if (ext === '.xml') {
         // 调用函数XML解析函数
         XmlContent = getTextFromXml(folderPathXML)
-      } else if (ext === '.json') {
-        // 调用函数JSON解析函数
-        XmlContent = getTextFromJson(folderPathXML)
+        // } else if (ext === '.json') {
+        //   // 调用函数JSON解析函数//M7没有json文件了
+        //   XmlContent = getTextFromJson(folderPathXML)
       } else {
         await dialog.showMessageBox({
           type: 'question',
@@ -1013,11 +1176,6 @@ function classification(datapath: string): void {
     XLSX.utils.book_append_sheet(outputWorkbook, worksheet, '分类数据')
     const outputFilePath = join(datapath, '数据分类.xlsx')
     XLSX.writeFile(outputWorkbook, outputFilePath)
-    dialog.showMessageBox({
-      type: 'info',
-      title: '信息',
-      message: '数据分类完成'
-    })
   } catch (err) {
     dialog.showMessageBox({
       type: 'error',
@@ -1061,8 +1219,8 @@ function generateExcelFilesPOU(excelpath: string): void {
       let XmlContent: XmlContent | null = null // 使用let并初始化;
       if (ext === '.xml') {
         XmlContent = getTextFromXml(folderPathXML)
-      } else if (ext === '.json') {
-        XmlContent = getTextFromJson(folderPathXML)
+        // } else if (ext === '.json') {  //M7没有json文件了
+        //   XmlContent = getTextFromJson(folderPathXML)
       } else {
         throw new Error(`不支持的文件类型: ${ext}`)
       }
@@ -1114,8 +1272,8 @@ function generateExcelFilesPID(workspaceFolder: string): void {
       let XmlContent: XmlContent | null = null // 使用let并初始化;
       if (ext === '.xml') {
         XmlContent = getTextFromXml(folderPathXML)
-      } else if (ext === '.json') {
-        XmlContent = getTextFromJson(folderPathXML)
+        // } else if (ext === '.json') {  //M7没有json文件了
+        //   XmlContent = getTextFromJson(folderPathXML)
       } else {
         throw new Error(`不支持的文件类型: ${ext}`)
       }
@@ -1149,54 +1307,80 @@ function generateExcelFilesPID(workspaceFolder: string): void {
 //读取 XML 文件中的 <text> 标签内容
 function getTextFromXml(filePath: string): XmlContent | null {
   try {
-    // 读取 XML 文件内容
-    const xmlContent = fs.readFileSync(filePath, 'latin1')
-    // 解析 XML
-    const parser = new XMLParser(parserOptions)
-    const json = parser.parse(xmlContent)
-    //console.log('读取XML',JSON.stringify(json, null, 2));
-    // 检查 json.pou.cfc 是否存在
-    if (!json.pou || !json.pou.cfc || !Array.isArray(json.pou.cfc.element)) {
-      dialog.showMessageBox({
-        type: 'question',
-        title: '问题',
-        message: 'XML文件格式不正确!'
-      })
-      return null
-    }
-    // 统计 POU.XML文件中有多少个element对象
-    const elementCount = json.pou.cfc.element.length
     const typeContent: string[] = [] // 初始化为空数组
     const idContent: string[] = [] // 初始化为空数组
     const positionContent: string[] = [] // 初始化为空数组
     const textContent: string[] = [] // 初始化为空数组
     const inputidxContent: string[][] = [] // 初始化为空数组
-    // 提取 <text> 标签的内容
-    for (let i = 0; i < elementCount; i++) {
-      typeContent.push(json.pou.cfc.element[i]['@_type'] || '') // 使用 push 方法将字符串添加到数组中
-      idContent.push(json.pou.cfc.element[i].id || '') // 使用 push 方法将字符串添加到数组中
-      // 判断 element 中是否有 text 标签
-      const hasText = json.pou.cfc.element[i].text !== undefined
-      textContent.push(hasText ? json.pou.cfc.element[i].text : json.pou.cfc.element[i].AT_type)
+    // 读取 XML 文件内容
+    const xmlContentM7 = fs.readFileSync(filePath, 'utf8')
+    // 解析 XML
+    const parserM7 = new XMLParser(parserOptions)
+    const jsonM7 = parserM7.parse(xmlContentM7)
+    // console.log('实际 XML 结构:', JSON.stringify(jsonM7, null, 2))
+    if (jsonM7.pou && jsonM7.pou.PouData && jsonM7.pou.PouData.CFCElementList) {
+      // **************************m7读取方式*******************************************
+      dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: 'M7'
+      })
+    } else {
+      // **************************m6读取方式*******************************************
+      // 读取 XML 文件内容
+      const xmlContent = fs.readFileSync(filePath, 'latin1')
+      // 解析 XML
+      const parser = new XMLParser(parserOptions)
+      const json = parser.parse(xmlContent)
+      //console.log('读取XML',JSON.stringify(json, null, 2));
+      // 检查 json.pou.cfc 是否存在
+      if (!json.pou || !json.pou.cfc || !Array.isArray(json.pou.cfc.element)) {
+        dialog.showMessageBox({
+          type: 'question',
+          title: '问题',
+          message: 'XML文件格式不正确!'
+        })
+        return null
+      }
+      // 统计 POU.XML文件中有多少个element对象
+      const elementCount = json.pou.cfc.element.length
 
-      if (json.pou.cfc.element[i]['@_type'] === 'input') {
-        positionContent.push(json.pou.cfc.element[i].AT_position || '') // 使用 push 方法将字符串添加到数组中
-        inputidxContent.push([])
-      } else if (json.pou.cfc.element[i]['@_type'] === 'output') {
-        positionContent.push(json.pou.cfc.element[i].position || '') // 使用 push 方法将字符串添加到数组中
-        inputidxContent.push([json.pou.cfc.element[i].Inputid || ''])
-      } else if (json.pou.cfc.element[i]['@_type'] === 'box') {
-        positionContent.push(json.pou.cfc.element[i].AT_position || '') // 使用 push 方法将字符串添加到数组中
-        const inputCount = json.pou.cfc.element[i].input ? json.pou.cfc.element[i].input.length : 0
-        inputidxContent.push([]) // 确保 inputidxContent[i] 是一个数组
-        for (let j = 0; j < inputCount; j++) {
-          inputidxContent[i].push(json.pou.cfc.element[i].input[j]['@_inputid'] || 0)
+      // 提取 <text> 标签的内容
+      for (let i = 0; i < elementCount; i++) {
+        typeContent.push(json.pou.cfc.element[i]['@_type'] || '') // 使用 push 方法将字符串添加到数组中
+        idContent.push(json.pou.cfc.element[i].id || '') // 使用 push 方法将字符串添加到数组中
+        // 判断 element 中是否有 text 标签
+        const hasText = json.pou.cfc.element[i].text !== undefined
+        textContent.push(hasText ? json.pou.cfc.element[i].text : json.pou.cfc.element[i].AT_type)
+
+        if (json.pou.cfc.element[i]['@_type'] === 'input') {
+          positionContent.push(json.pou.cfc.element[i].AT_position || '') // 使用 push 方法将字符串添加到数组中
+          inputidxContent.push([])
+        } else if (json.pou.cfc.element[i]['@_type'] === 'output') {
+          positionContent.push(json.pou.cfc.element[i].position || '') // 使用 push 方法将字符串添加到数组中
+          inputidxContent.push([json.pou.cfc.element[i].Inputid || ''])
+        } else if (json.pou.cfc.element[i]['@_type'] === 'box') {
+          positionContent.push(json.pou.cfc.element[i].AT_position || '') // 使用 push 方法将字符串添加到数组中
+          // 修复：统一处理单元素/多元素情况
+          const inputs = json.pou.cfc.element[i].input
+          const inputArray = Array.isArray(inputs) ? inputs : inputs ? [inputs] : []
+          // const inputCount = json.pou.cfc.element[i].input ? json.pou.cfc.element[i].input.length : 0
+          inputidxContent.push([]) // 确保 inputidxContent[i] 是一个数组
+          // console.log('inputCount', inputArray.length)
+          if (inputArray.length === 1) {
+            inputidxContent[i].push(json.pou.cfc.element[i].input['@_inputid'] || 0)
+          } else {
+            for (let j = 0; j < inputArray.length; j++) {
+              inputidxContent[i].push(json.pou.cfc.element[i].input[j]['@_inputid'] || 0)
+            }
+          }
+        } else {
+          positionContent.push(json.pou.cfc.element[i].position || '') // 使用 push 方法将字符串添加到数组中
+          inputidxContent.push([])
         }
-      } else {
-        positionContent.push(json.pou.cfc.element[i].position || '') // 使用 push 方法将字符串添加到数组中
-        inputidxContent.push([])
       }
     }
+    // console.log('inputidxContent', inputidxContent)
     return { typeContent, idContent, positionContent, textContent, inputidxContent }
   } catch (err) {
     dialog.showMessageBox({
@@ -1208,174 +1392,174 @@ function getTextFromXml(filePath: string): XmlContent | null {
   }
 }
 //读取 JSON 文件中的 <text> 标签内容
-function getTextFromJson(filePath: string): XmlContent | null {
-  try {
-    // 1. 使用utf8编码读取文件
-    const rawData = fs.readFileSync(filePath, 'utf8')
-    // 2. 解析外层JSON结构
-    const outerJson = JSON.parse(rawData)
-    // 3. 解析内部pou字段的JSON字符串
-    const poujson = JSON.parse(outerJson.pou)
-    // console.log('读取JSON',poujson.PouInfo.pou_data.pou_data);
-    // 检查 json.pou.cfc 是否存在
-    if (!poujson.PouInfo.pou_data || !poujson.PouInfo.pou_data.pou_data.CFCElementList) {
-      dialog.showMessageBox({
-        type: 'question',
-        title: '问题',
-        message: 'JSON 文件结构不正确!'
-      })
-      return null
-    }
-    // 统计 POU.XML文件中有多少个element对象
-    const elementCount = poujson.PouInfo.pou_data.pou_data.CFCElementList.length
-    //console.log('长度',elementCount);
-    const typeContent: string[] = [] // 初始化为空数组
-    const idContent: string[] = [] // 初始化为空数组
-    const positionContent: string[] = [] // 初始化为空数组
-    const textContent: string[] = [] // 初始化为空数组
-    const inputidxContent: string[][] = [] // 初始化为空数组
-    // 提取 <text> 标签的内容
-    for (let i = 0; i < elementCount; i++) {
-      const element = poujson.PouInfo.pou_data.pou_data.CFCElementList[i] // 获取一个新对象
-      const elementType = Object.keys(element)[0] //获取对象的第一个键名
-      if (elementType === 'CFCInput') {
-        typeContent.push(elementType || '') //获取对象的第一个键名
-        // 组合ID
-        const id_data =
-          element[elementType].CFCElement?.Element?.ElementID +
-          ',' +
-          element[elementType].CFCOutputPin?.CFCPin?.PinID
-        idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-        // 组合XY坐标
-        const position_data =
-          element[elementType].CFCElement?.Element?.PosX +
-          ',' +
-          element[elementType].CFCElement?.Element?.PosY +
-          ',' +
-          (element[elementType].AnchorPosX - element[elementType].CFCElement?.Element?.PosX) +
-          ',' +
-          (element[elementType].AnchorPosY - element[elementType].CFCElement?.Element?.PosY)
-        positionContent.push(position_data || '')
-        const base64Str = element[elementType].CFCElement?.Element?.ElementText
-        const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
-        const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
-        textContent.push(text_data || '')
-        inputidxContent.push([])
-        //console.log('内容',JSON.stringify(element[elementType], null, 2));
-      } else if (elementType === 'CFCOutput') {
-        typeContent.push(elementType || '') //获取对象的第一个键名
-        // 组合ID
-        const id_data =
-          element[elementType].CFCElement?.Element?.ElementID +
-          ',' +
-          element[elementType].CFCInputPin?.CFCPin?.PinID
-        idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-        // 组合XY坐标
-        const position_data =
-          element[elementType].CFCElement?.Element?.PosX +
-          ',' +
-          element[elementType].CFCElement?.Element?.PosY
-        positionContent.push(position_data || '')
-        const base64Str = element[elementType].CFCElement?.Element?.ElementText
-        const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
-        const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
-        textContent.push(text_data || '')
-        inputidxContent.push([element[elementType].CFCInputPin?.RefPinID || ''])
-      } else if (elementType === 'CFCBox') {
-        typeContent.push(elementType || '') //获取对象的第一个键名
-        // 组合ID
-        let id_box_in = '' // 统计 CFCBox 中的输入引脚ID
-        let id_box_out = '' // 统计 CFCBox 中的输出引脚ID
-        // 正确遍历 CFCOutputPinList 数组
-        if (element[elementType].CFCOutputPinList) {
-          for (const pinItem of element[elementType].CFCOutputPinList) {
-            const pin = pinItem.CFCOutputPin // 获取每个 CFCOutputPin 对象
-            if (pin?.CFCPin?.PinID !== undefined) {
-              id_box_out += pin.CFCPin.PinID + ','
-            }
-          }
-        }
-        // 同样修正 CFCInputPinList 的遍历（如果存在）
-        if (element[elementType].CFCInputPinList) {
-          for (const pinItem of element[elementType].CFCInputPinList) {
-            const pin = pinItem.CFCInputPin
-            if (pin?.CFCPin?.PinID !== undefined) {
-              id_box_in += pin.CFCPin.PinID + ','
-            }
-          }
-        }
-        id_box_out = id_box_out ? id_box_out.slice(0, -1) : ''
-        const id_data =
-          element[elementType].CFCElement?.Element?.ElementID + ',' + id_box_in + id_box_out
-        idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-        // 组合XY坐标
-        const position_data =
-          element[elementType].CFCElement?.Element?.PosX +
-          ',' +
-          element[elementType].CFCElement?.Element?.PosY +
-          ',' +
-          (element[elementType].AnchorPosX - element[elementType].CFCElement?.Element?.PosX) +
-          ',' +
-          (element[elementType].AnchorPosY - element[elementType].CFCElement?.Element?.PosY)
-        positionContent.push(position_data || '')
-        if (element[elementType].FBVarName) {
-          const text_data = element[elementType].FBVarName
-          textContent.push(text_data || '')
-        } else {
-          const base64Str = element[elementType].CFCElement?.Element?.ElementText
-          const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
-          const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
-          textContent.push(text_data || '')
-        }
-        //console.log('内容',JSON.stringify(element[elementType].CFCInputPinList, null, 2));
-        inputidxContent.push([]) // 确保 inputidxContent[i] 是一个数组
-        if (element[elementType].CFCInputPinList) {
-          for (const pinItem of element[elementType].CFCInputPinList) {
-            const refPinID = pinItem.CFCInputPin?.RefPinID || 0
-            inputidxContent[inputidxContent.length - 1].push(refPinID)
-          }
-        }
-      } else if (elementType === 'CFCComment') {
-        typeContent.push(elementType || '') //获取对象的第一个键名
-        // 组合ID
-        const id_data = element[elementType].CFCElement?.Element?.ElementID
-        idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-        // 组合XY坐标
-        const position_data =
-          element[elementType].CFCElement?.Element?.PosX +
-          ',' +
-          element[elementType].CFCElement?.Element?.PosY
-        positionContent.push(position_data || '')
-        const base64Str = element[elementType].CFCElement?.Element?.ElementText
-        const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
-        const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
-        textContent.push(text_data || '')
-        inputidxContent.push([])
-      } else if (elementType === 'CFCLine') {
-        typeContent.push(elementType || '') //获取对象的第一个键名
-        // 组合ID
-        const id_data =
-          '0' + ',' + element[elementType].InputPinID + ',' + element[elementType].OutputPinID
-        idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-      } else {
-        dialog.showMessageBox({
-          type: 'question',
-          title: '问题',
-          message: 'JSON 文件不能包含输入、输出、功能块、注释之外的其他类型元素!'
-        })
-      }
-    }
-    // console.log('连接',inputidxContent);
-    return { typeContent, idContent, positionContent, textContent, inputidxContent }
-  } catch (err) {
-    dialog.showMessageBox({
-      type: 'error',
-      title: '错误',
-      message: `读取 JSON 文件出错:${(err as Error).message}`
-    })
-    return null
-  }
-}
+// function getTextFromJson(filePath: string): XmlContent | null {
+//   try {
+//     // 1. 使用utf8编码读取文件
+//     const rawData = fs.readFileSync(filePath, 'utf8')
+//     // 2. 解析外层JSON结构
+//     const outerJson = JSON.parse(rawData)
+//     // 3. 解析内部pou字段的JSON字符串
+//     const poujson = JSON.parse(outerJson.pou)
+//     // console.log('读取JSON',poujson.PouInfo.pou_data.pou_data);
+//     // 检查 json.pou.cfc 是否存在
+//     if (!poujson.PouInfo.pou_data || !poujson.PouInfo.pou_data.pou_data.CFCElementList) {
+//       dialog.showMessageBox({
+//         type: 'question',
+//         title: '问题',
+//         message: 'JSON 文件结构不正确!'
+//       })
+//       return null
+//     }
+//     // 统计 POU.XML文件中有多少个element对象
+//     const elementCount = poujson.PouInfo.pou_data.pou_data.CFCElementList.length
+//     //console.log('长度',elementCount);
+//     const typeContent: string[] = [] // 初始化为空数组
+//     const idContent: string[] = [] // 初始化为空数组
+//     const positionContent: string[] = [] // 初始化为空数组
+//     const textContent: string[] = [] // 初始化为空数组
+//     const inputidxContent: string[][] = [] // 初始化为空数组
+//     // 提取 <text> 标签的内容
+//     for (let i = 0; i < elementCount; i++) {
+//       const element = poujson.PouInfo.pou_data.pou_data.CFCElementList[i] // 获取一个新对象
+//       const elementType = Object.keys(element)[0] //获取对象的第一个键名
+//       if (elementType === 'CFCInput') {
+//         typeContent.push(elementType || '') //获取对象的第一个键名
+//         // 组合ID
+//         const id_data =
+//           element[elementType].CFCElement?.Element?.ElementID +
+//           ',' +
+//           element[elementType].CFCOutputPin?.CFCPin?.PinID
+//         idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
+//         // 组合XY坐标
+//         const position_data =
+//           element[elementType].CFCElement?.Element?.PosX +
+//           ',' +
+//           element[elementType].CFCElement?.Element?.PosY +
+//           ',' +
+//           (element[elementType].AnchorPosX - element[elementType].CFCElement?.Element?.PosX) +
+//           ',' +
+//           (element[elementType].AnchorPosY - element[elementType].CFCElement?.Element?.PosY)
+//         positionContent.push(position_data || '')
+//         const base64Str = element[elementType].CFCElement?.Element?.ElementText
+//         const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
+//         const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
+//         textContent.push(text_data || '')
+//         inputidxContent.push([])
+//         //console.log('内容',JSON.stringify(element[elementType], null, 2));
+//       } else if (elementType === 'CFCOutput') {
+//         typeContent.push(elementType || '') //获取对象的第一个键名
+//         // 组合ID
+//         const id_data =
+//           element[elementType].CFCElement?.Element?.ElementID +
+//           ',' +
+//           element[elementType].CFCInputPin?.CFCPin?.PinID
+//         idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
+//         // 组合XY坐标
+//         const position_data =
+//           element[elementType].CFCElement?.Element?.PosX +
+//           ',' +
+//           element[elementType].CFCElement?.Element?.PosY
+//         positionContent.push(position_data || '')
+//         const base64Str = element[elementType].CFCElement?.Element?.ElementText
+//         const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
+//         const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
+//         textContent.push(text_data || '')
+//         inputidxContent.push([element[elementType].CFCInputPin?.RefPinID || ''])
+//       } else if (elementType === 'CFCBox') {
+//         typeContent.push(elementType || '') //获取对象的第一个键名
+//         // 组合ID
+//         let id_box_in = '' // 统计 CFCBox 中的输入引脚ID
+//         let id_box_out = '' // 统计 CFCBox 中的输出引脚ID
+//         // 正确遍历 CFCOutputPinList 数组
+//         if (element[elementType].CFCOutputPinList) {
+//           for (const pinItem of element[elementType].CFCOutputPinList) {
+//             const pin = pinItem.CFCOutputPin // 获取每个 CFCOutputPin 对象
+//             if (pin?.CFCPin?.PinID !== undefined) {
+//               id_box_out += pin.CFCPin.PinID + ','
+//             }
+//           }
+//         }
+//         // 同样修正 CFCInputPinList 的遍历（如果存在）
+//         if (element[elementType].CFCInputPinList) {
+//           for (const pinItem of element[elementType].CFCInputPinList) {
+//             const pin = pinItem.CFCInputPin
+//             if (pin?.CFCPin?.PinID !== undefined) {
+//               id_box_in += pin.CFCPin.PinID + ','
+//             }
+//           }
+//         }
+//         id_box_out = id_box_out ? id_box_out.slice(0, -1) : ''
+//         const id_data =
+//           element[elementType].CFCElement?.Element?.ElementID + ',' + id_box_in + id_box_out
+//         idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
+//         // 组合XY坐标
+//         const position_data =
+//           element[elementType].CFCElement?.Element?.PosX +
+//           ',' +
+//           element[elementType].CFCElement?.Element?.PosY +
+//           ',' +
+//           (element[elementType].AnchorPosX - element[elementType].CFCElement?.Element?.PosX) +
+//           ',' +
+//           (element[elementType].AnchorPosY - element[elementType].CFCElement?.Element?.PosY)
+//         positionContent.push(position_data || '')
+//         if (element[elementType].FBVarName) {
+//           const text_data = element[elementType].FBVarName
+//           textContent.push(text_data || '')
+//         } else {
+//           const base64Str = element[elementType].CFCElement?.Element?.ElementText
+//           const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
+//           const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
+//           textContent.push(text_data || '')
+//         }
+//         //console.log('内容',JSON.stringify(element[elementType].CFCInputPinList, null, 2));
+//         inputidxContent.push([]) // 确保 inputidxContent[i] 是一个数组
+//         if (element[elementType].CFCInputPinList) {
+//           for (const pinItem of element[elementType].CFCInputPinList) {
+//             const refPinID = pinItem.CFCInputPin?.RefPinID || 0
+//             inputidxContent[inputidxContent.length - 1].push(refPinID)
+//           }
+//         }
+//       } else if (elementType === 'CFCComment') {
+//         typeContent.push(elementType || '') //获取对象的第一个键名
+//         // 组合ID
+//         const id_data = element[elementType].CFCElement?.Element?.ElementID
+//         idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
+//         // 组合XY坐标
+//         const position_data =
+//           element[elementType].CFCElement?.Element?.PosX +
+//           ',' +
+//           element[elementType].CFCElement?.Element?.PosY
+//         positionContent.push(position_data || '')
+//         const base64Str = element[elementType].CFCElement?.Element?.ElementText
+//         const buffer = Buffer.from(base64Str, 'base64') // 将 Base64 转为 Buffer
+//         const text_data = buffer.toString() // 转换为字符串（默认 UTF-8）
+//         textContent.push(text_data || '')
+//         inputidxContent.push([])
+//       } else if (elementType === 'CFCLine') {
+//         typeContent.push(elementType || '') //获取对象的第一个键名
+//         // 组合ID
+//         const id_data =
+//           '0' + ',' + element[elementType].InputPinID + ',' + element[elementType].OutputPinID
+//         idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
+//       } else {
+//         dialog.showMessageBox({
+//           type: 'question',
+//           title: '问题',
+//           message: 'JSON 文件不能包含输入、输出、功能块、注释之外的其他类型元素!'
+//         })
+//       }
+//     }
+//     // console.log('连接',inputidxContent);
+//     return { typeContent, idContent, positionContent, textContent, inputidxContent }
+//   } catch (err) {
+//     dialog.showMessageBox({
+//       type: 'error',
+//       title: '错误',
+//       message: `读取 JSON 文件出错:${(err as Error).message}`
+//     })
+//     return null
+//   }
+// }
 //创建新画面修改excel文件   （思路不清晰、未完成）
 function generateExcelFilesHIM(workspaceFolder: string): void {
   try {
@@ -1453,6 +1637,7 @@ function getTextFromHMI(filePath: string): HmiContent {
     const HmiJson = JSON.parse(rawData)
     // 3. 解析内部pou字段的JSON字符串
     // const poujson = JSON.parse(outerJson.pou);
+    // console.log('读取JSON', JSON.stringify(HmiJson, null, 2))
     console.log('读取JSON', HmiJson)
     // 检查 json.pou.cfc 是否存在
     const pageContent: string[] = [] // 页面
@@ -1931,10 +2116,21 @@ function addTextInXml(filePath: string, newJson: XmlContent): any {
       } else if (json.pou.cfc.element[i]['@_type'] === 'box') {
         json.pou.cfc.element[i].AT_position = newJson.positionContent[i]
         // 对于box类型元素，更新其所有输入的inputid属性
-        const inputCount = json.pou.cfc.element[i].input ? json.pou.cfc.element[i].input.length : 0
-        for (let j = 0; j < inputCount; j++) {
-          json.pou.cfc.element[i].input[j]['@_inputid'] = newJson.inputidxContent[i][j]
+        // const inputCount = json.pou.cfc.element[i].input ? json.pou.cfc.element[i].input.length : 0
+        // 修复：统一处理单元素/多元素情况
+        const inputs = json.pou.cfc.element[i].input
+        const inputArray = Array.isArray(inputs) ? inputs : inputs ? [inputs] : []
+        // console.log('inputCount', inputArray.length)
+        if (inputArray.length === 1) {
+          json.pou.cfc.element[i].input['@_inputid'] = newJson.inputidxContent[i][0]
+        } else {
+          for (let j = 0; j < inputArray.length; j++) {
+            json.pou.cfc.element[i].input[j]['@_inputid'] = newJson.inputidxContent[i][j]
+          }
         }
+        // for (let j = 0; j < inputCount; j++) {
+        //   json.pou.cfc.element[i].input[j]['@_inputid'] = newJson.inputidxContent[i][j]
+        // }
       } else {
         json.pou.cfc.element[i].position = newJson.positionContent[i]
       }

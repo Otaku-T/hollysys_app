@@ -28,6 +28,10 @@ function open_file(): void {
 function create_hollysys(): void {
   window.electron.ipcRenderer.send('create_hollysys')
 }
+// 功能测试按钮
+function test_sw(): void {
+  window.electron.ipcRenderer.send('test_sw')
+}
 // 路由跳转
 function login_zhaobiao(): void {
   router.push('/zhaobiao')
@@ -57,6 +61,7 @@ function login_tool(): void {
       <button class="red" type="button" @click="login_sheji">设计</button>
       <button class="red" type="button" @click="login_zutai">组态</button>
       <button class="red" type="button" @click="login_tool">工具</button>
+      <button class="red" type="button" @click="test_sw">测试</button>
     </div>
   </span>
   <!-- 新增分割线 -->

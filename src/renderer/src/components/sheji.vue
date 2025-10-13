@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import FileTree from './FileTree.vue'
-import Tabs from './Tabs.vue'
 import { useFilesStore } from '../store/Files'
+// import Tabs from './Tabs.vue'
 
 const filesStore = useFilesStore()
 const router = useRouter()
@@ -39,8 +39,27 @@ function hollysysIOjxb(): void {
       />
     </div>
     <div class="right-panel">
-      <Tabs />
-      <!-- <textarea class="resizable-textarea" readonly></textarea> -->
+      <!-- <Tabs /> -->
+      <div class="tool-container">
+        <hr class="page-divider" />
+        <div>
+          <h3>其他</h3>
+        </div>
+      </div>
     </div>
   </div>
 </template>
+<style scoped>
+.tool-container {
+  flex: 1; /* 占据剩余空间 */
+  height: calc(100vh - 20px);
+  flex-direction: column; /* 改为垂直布局 */
+  gap: 12px;
+  border: 1px solid #ccc; /* 添加边框 */
+  border-radius: 4px; /* 圆角 */
+  padding: 16px; /* 内边距 */
+  /* margin: 10px 10px 10px 0; 调整外边距 */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 可选投影 */
+  overflow-y: auto; /* 明确指定垂直滚动 */
+}
+</style>

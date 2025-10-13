@@ -3,12 +3,14 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../renderer/src/assets/logo.png?asset'
 import {
+  test_sw,
   open_files_dialog,
   DirectoryNode,
   create_hollysys,
   hollysysDATA,
   hollysysExcel,
   hollysysPID,
+  hollysysRWexcel,
   hollysysPOU,
   hollysysPOUExcel,
   hollysysST,
@@ -73,7 +75,7 @@ app.commandLine.appendSwitch('enable-automation')
 function createWindow(): void {
   // 创建浏览器窗口实例并配置基础属性
   global.mainWindow = new BrowserWindow({
-    width: 900,
+    width: 1000,
     height: 700,
     show: false,
     autoHideMenuBar: true,
@@ -106,11 +108,13 @@ function createWindow(): void {
 // IPC通信接口合集
 function setupIpc(): void {
   // 调用组态IPC通信函数
+  ipcMain.on('test_sw', test_sw)
   ipcMain.on('open-files-dialog', open_files_dialog)
   ipcMain.on('create_hollysys', create_hollysys)
   ipcMain.on('hollysysDATA', hollysysDATA)
   ipcMain.on('hollysysExcel', hollysysExcel)
   ipcMain.on('hollysysPID', hollysysPID)
+  ipcMain.on('hollysysRWexcel', hollysysRWexcel)
   ipcMain.on('hollysysPOU', hollysysPOU)
   ipcMain.on('hollysysPOUExcel', hollysysPOUExcel)
   ipcMain.on('hollysysST', hollysysST)

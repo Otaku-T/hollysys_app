@@ -574,7 +574,7 @@ function Ioto_data_m6(data: string[][]): IOdataList {
             2, 2, 5, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
             '00:00:01', 0, 0, 0, 0, 1, 2, 0, 2, 1, 0, 0, 0, 0, '', 0, '', 
             0, 0, 0, 0, 0, 0, 0, 0, '', 1, 
-            data[i][14] === '是' ? 1 : 0, 0, 0, 0, 
+            data[i][14] === '是' ? 1 : 0, 0, 0, 2, 
             data[i][12] === '4Wire' ? 1 : 0])
         } else {
           Iodata_m6.AI.push([data[i][0], data[i][1], Number(data[i][17]), data[i][20], Number(data[i][18]), Number(data[i][19]), 

@@ -50,6 +50,8 @@ function checking_update(): void {
     <button class="red" type="button" @click="excel_merge">EXCEL合</button>
     <button class="red" type="button" @click="excel_split">EXCEL拆</button>
     <button class="red" type="button" @click="ops_tool">OPS截屏</button>
+    <button class="red" type="button">OPC UA</button>
+    <button class="red" type="button">IPV4 TO IPV6</button>
     <button class="red" type="button" @click="checking_update">更新</button>
   </span>
   <!-- 新增分割线 -->
@@ -124,7 +126,19 @@ function checking_update(): void {
     </div>
     <hr class="page-divider" />
     <div>
-      <h3>其他</h3>
+      <h3>WIN CMD指令:</h3>
+      <h4>route(路由指令)</h4>
+      <h4>slmgr.vbs -xpr(查看电脑激活指令)</h4>
+      <h4>slui 4(电话激活指令)</h4>
+      <h4>tracert(跟踪路由指令)</h4>
+      <h4>netstat -ano(查看网络端口指令)</h4>
+      <h4>dir *.mgo/b >file.txt(打印CMD工作目录下的所有文件并保存)</h4>
+      <h4>shutdown /r /fw /t 0(电脑重启后进入bios)</h4>
+      <h3>WIN 运行指令:</h3>
+      <h4>gpedit.msc(本地组策略编辑器)</h4>
+      <h4>control userpasswords2(设置默认用户)</h4>
+      <h4>netplwiz(设置默认用户)</h4>
+      <h4>mstsc(远程桌面)</h4>
     </div>
   </div>
 </template>

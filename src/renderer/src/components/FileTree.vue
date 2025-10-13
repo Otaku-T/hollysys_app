@@ -17,10 +17,16 @@ function handleNodeClick(node: DirectoryNode): void {
 function handleFileClick(node: DirectoryNode): void {
   // if (node.kind === 'directory') return
   window.electron.ipcRenderer.send('get-file-text', node.path)
-  window.electron.ipcRenderer.once('file-text', (_, text) => {
-    tabsStore.addTab(node.name, text, node.path)
-  }) // 发送请求到主进程
-  // console.log('节点被点击,去主进程获取数据:', node.name)
+  // 检查是否包含任意文本文件扩展名
+  const isTextFile = ['.st', '.txt', '.md', '.xml', '.json', '.mgp7'].some((ext) =>
+    node.name.endsWith(ext)
+  )
+  if (isTextFile) {
+    window.electron.ipcRenderer.once('file-text', (_, text) => {
+      tabsStore.addTab(node.name, text, node.path)
+    }) // 发送请求到主进程
+  }
+  console.log('节点被点击,去主进程获取数据:', node.name)
   // 可在此处添加文件预览/操作逻辑
 }
 </script>
