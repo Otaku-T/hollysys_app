@@ -2,7 +2,8 @@
   "extends": "@electron-toolkit/tsconfig/tsconfig.web.json",
   "include": [
     "src/renderer/src/env.d.ts",
-    "src/renderer/src/**/*",
+    "src/renderer/src/**/*.ts",   // 新增：仅包含 .ts 文件
+    "src/renderer/src/**/*.js",   // 新增：仅包含 .js 文件
     "src/renderer/src/**/*.vue",
     "src/preload/*.d.ts"
   ],

@@ -26,7 +26,8 @@ import {
   excel_split,
   hollysysPOU6,
   hollysysIOdata,
-  hollysysIOjxb
+  hollysysIOjxb,
+  get_file_pdf
 } from './tool' // 引入新文件
 // 在入口文件中统一声明全局变量
 declare global {
@@ -38,18 +39,6 @@ declare global {
 }
 global.mainWindow = null // 初始化为空
 // // 使用 defineProperty 监听变量变化
-// Object.defineProperty(global, 'globalpaths', {
-//   configurable: true,
-//   enumerable: true,
-//   get(): string[] {
-//     return global._globalpaths || []
-//   },
-//   set(newValue: string[]) {
-//     global._globalpaths = newValue
-//     console.log('globalpaths 变更:', newValue)
-//   }
-// })
-
 Object.defineProperty(global, 'globalDirectoryTree', {
   configurable: true,
   enumerable: true,
@@ -140,6 +129,7 @@ function setupIpc(): void {
   ipcMain.on('hollysysPOU6', hollysysPOU6)
   ipcMain.on('hollysysIOdata', hollysysIOdata)
   ipcMain.on('hollysysIOjxb', hollysysIOjxb)
+  ipcMain.on('get-file-pdf', get_file_pdf)
 }
 // 应用初始化完成后的配置
 app.whenReady().then(async () => {

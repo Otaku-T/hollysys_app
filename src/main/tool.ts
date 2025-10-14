@@ -291,6 +291,20 @@ export async function hollysysPOU6(): Promise<void> {
   const GUIPath = join(__dirname, '../../resources', 'POU6.exe')
   await execFileAsync(GUIPath)
 }
+// 显示PDF
+export async function get_file_pdf(): Promise<void> {
+  try {
+    const url = join(__dirname, '../../resources', 'help.pdf')
+    global.mainWindow.webContents.send('file-pdf', url)
+  } catch (err) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: '错误',
+      message: `PDF显示错误:${(err as Error).message}`
+    })
+  }
+}
+
 // 生成数据库
 export async function hollysysIOdata(): Promise<void> {
   try {

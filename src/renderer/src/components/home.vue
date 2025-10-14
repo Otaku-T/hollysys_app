@@ -1,24 +1,10 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import { ref, onMounted } from 'vue'
-import helpMd from '../assets/help.md?raw' // 根据实际路径调整
 import FileTree from './FileTree.vue'
+import PDF from './PDF.vue'
 import { useFilesStore } from '../store/Files'
 const filesStore = useFilesStore()
-
-const markdownContent = ref('')
 const router = useRouter()
-
-// 加载Markdown文件内容
-const loadMarkdown = async (): Promise<void> => {
-  // console.log('加载文件')
-  markdownContent.value = helpMd
-  // console.log(markdownContent.value)
-}
-// 组件挂载时加载文件
-onMounted(() => {
-  loadMarkdown()
-})
 
 // 打开文件
 function open_file(): void {
@@ -74,10 +60,11 @@ function login_tool(): void {
         :node="filesStore.files_tree_data[0]"
       />
     </div>
-    <div class="right-panel">
-      <!-- <code-editor></code-editor> -->
-      <textarea class="resizable-textarea" readonly :value="markdownContent"></textarea>
-    </div>
+    <!-- <div class="right-panel"> -->
+    <PDF />
+    <!-- <code-editor></code-editor> -->
+    <!-- <textarea class="resizable-textarea" readonly></textarea> -->
+    <!-- </div> -->
   </div>
 </template>
 <style scoped>

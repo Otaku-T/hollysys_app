@@ -1,6 +1,6 @@
 {
   "name": "hollysys",
-  "version": "2.2.4",
+  "version": "2.2.5",
   "description": "这是一个HOLLYSYS的MACS软件的辅助APP",
   "main": "./out/main/index.js",
   "author": "红烧肉",
@@ -16,7 +16,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:test": "npm run build && electron-builder --win",
-    "build:win": "electron-builder --win --publish always",
+    "build:win": "npm run build && electron-builder --win --publish always",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux"
   },
@@ -29,6 +29,7 @@
     "exceljs": "^4.4.0",
     "fast-xml-parser": "^5.2.1",
     "monaco-editor": "^0.52.2",
+    "pdfobject": "^2.3.1",
     "pinia": "^3.0.2",
     "vue-router": "^4.5.0",
     "xlsx": "^0.18.5"

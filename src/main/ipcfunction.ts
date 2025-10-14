@@ -82,6 +82,7 @@ global.stopWatching = () => {
   global.chokidarWatchers.forEach((watcher) => watcher.close())
   global.chokidarWatchers = []
 }
+// 测试函数
 export async function test_sw(): Promise<void> {
   try {
     if (global.globalpaths) {
