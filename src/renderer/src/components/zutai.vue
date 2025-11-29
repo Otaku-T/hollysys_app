@@ -50,6 +50,14 @@ function hollysysSTExcel(): void {
 function hollysysPOU6(): void {
   window.electron.ipcRenderer.send('hollysysPOU6')
 }
+// 修改画面
+function hollysysHIM_m(): void {
+  window.electron.ipcRenderer.send('hollysysHIM_m')
+}
+// 生成画面
+function hollysysHIM_c(): void {
+  window.electron.ipcRenderer.send('hollysysHIM_c')
+}
 // 备份excel文件
 function hollysysBF(): void {
   window.electron.ipcRenderer.send('hollysysBF')
@@ -68,9 +76,9 @@ function hollysysBF(): void {
     <button class="red" type="button" @click="hollysysST">生成ST</button>
     <button class="red" type="button" @click="hollysysSTExcel">ST变量表</button>
     <button class="red" type="button" @click="hollysysSTPOU">替换ST</button>
-    <button class="red" type="button">修改画面</button>
-    <button class="red" type="button">生成画面</button>
-    <button class="red" type="button" @click="hollysysPOU6">回路生成exe</button>
+    <button class="red" type="button" @click="hollysysHIM_m">修改画面</button>
+    <button class="red" type="button" @click="hollysysHIM_c">生成画面</button>
+    <button class="red" type="button" @click="hollysysPOU6">POU6.exe</button>
     <button class="red" type="button" @click="hollysysBF">备份</button>
   </span>
   <!-- 新增分割线 -->

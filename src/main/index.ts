@@ -16,6 +16,8 @@ import {
   hollysysST,
   hollysysSTPOU,
   hollysysSTExcel,
+  hollysysHIM_m,
+  hollysysHIM_c,
   hollysysBF,
   get_file_text,
   save_file_data
@@ -109,6 +111,8 @@ function setupIpc(): void {
   ipcMain.on('hollysysST', hollysysST)
   ipcMain.on('hollysysSTPOU', hollysysSTPOU)
   ipcMain.on('hollysysSTExcel', hollysysSTExcel)
+  ipcMain.on('hollysysHIM_m', hollysysHIM_m)
+  ipcMain.on('hollysysHIM_c', hollysysHIM_c)
   ipcMain.on('hollysysBF', hollysysBF)
   ipcMain.on('get-file-text', async (_, path) => {
     get_file_text(path)

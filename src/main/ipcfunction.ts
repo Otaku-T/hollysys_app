@@ -5,7 +5,7 @@ import chokidar from 'chokidar'
 import * as XLSX from 'xlsx'
 import { XMLParser } from 'fast-xml-parser'
 import { XMLBuilder } from 'fast-xml-parser'
-
+import { transpose, groupByFirstColumn, unflattenInputidx, mergeRowsByFirst } from './count' // 引入新文件
 // 定义目录节点类型
 export interface DirectoryNode {
   path: string
@@ -25,6 +25,7 @@ interface XmlContent {
 // 定义 HMIContent 类型
 interface HmiContent {
   pageContent: string[] // 页面
+  tageContent: string[][] // 页面点
   textContent: string[][] // 文字
   lineContent: string[][] // 直线
   groupContent: string[][] // 组合
@@ -224,7 +225,6 @@ export async function processDirectory(path: string): Promise<DirectoryNode> {
   }
   return node
 }
-
 // 创建工程
 export async function create_hollysys(): Promise<void> {
   if (global.globalpaths) {
@@ -251,7 +251,6 @@ export async function create_hollysys(): Promise<void> {
     })
   }
 }
-
 // 数据分类,相应IPC函数
 export async function hollysysDATA(): Promise<void> {
   if (global.globalpaths) {
@@ -351,7 +350,7 @@ export async function hollysysPID(): Promise<void> {
               json.pou.Name = `${json.pou.Name}${j}`
               json.pou.PouData['@_POUSelfShowName'] = json.pou.Name
               json.pou.VarsData.GroupName = json.pou.Name
-              // json.pou.XmlVersion = '1.0'
+              json.pou.XmlVersion = '1.0'
               // 将更改后jsonData内容写入文件
               const folderPathOut = join(folderPath3, `${j}${files[i]}`)
               // console.log('文件路径', folderPathOut)
@@ -836,18 +835,18 @@ export async function hollysysSTPOU(): Promise<void> {
         Exceldata.jsonData[i] &&
         Array.isArray(Exceldata.jsonData[i][1])
       ) {
-        stFileContent = fs.readFileSync(folderPathST, 'utf8')
         // console.log(`文件内容: ${Exceldata?.jsonData[i][1].length}`);
         // 一个顺控要替换几次
         for (let k = 1; k < Exceldata?.jsonData[i][1].length; k++) {
+          stFileContent = fs.readFileSync(folderPathST, 'utf8')
           // console.log(`替换几次: ${k}`);
           // 一个顺控中有多少点要替换
           for (let j = 1; j < Exceldata?.jsonData[i].length; j++) {
             // console.log(`点次数: ${j}`);
             if (Exceldata?.jsonData[i][j][k] !== '' && Exceldata?.jsonData[i][j][k] !== undefined) {
-              const regex = new RegExp(Exceldata?.jsonData[i][j][k - 1], 'g') // 创建带全局标志的正则表达式
+              const regex = new RegExp(Exceldata?.jsonData[i][j][0], 'g') // 创建带全局标志的正则表达式
               stFileContent = stFileContent.replace(regex, Exceldata?.jsonData[i][j][k]) // 重新赋值
-              // console.log('替换',Exceldata?.jsonData[i][j][0],Exceldata?.jsonData[i][j][k]);
+              // console.log('替换', regex, Exceldata?.jsonData[i][j][k])
             }
           }
           const outputFilePath = join(folderPath3, `${k - 1 + files[i]}`)
@@ -959,6 +958,364 @@ export async function hollysysSTExcel(): Promise<void> {
       type: 'error',
       title: '错误',
       message: `读取ST文档变量失败:${(err as Error).message}`
+    })
+  }
+}
+// 修改画面,相应IPC函数
+export async function hollysysHIM_m(): Promise<void> {
+  try {
+    const excelpath = join(global.globalpaths[0], '组态', '画面修改.xlsx')
+    if (!excelpath) {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '请先生成点画面修改表！'
+      })
+      return
+    }
+    // 替换点名或修改画面
+    const RWexcel = await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '替换点名或修改画面?',
+      buttons: ['替换点名', '修改页面', '修改文字', '修改直线', '修改组合', '取消'], // 按钮顺序影响返回值
+      defaultId: 5, // 默认选中第一个按钮（是）
+      cancelId: 5 // 按ESC时视为取消
+    })
+    const workspaceFolder = join(global.globalpaths[0], '组态')
+    // 获取当前工作区路径 点名替换.xlsx
+    const folderPath1 = join(workspaceFolder, '画面修改.xlsx')
+    const Exceldata = readExcelFile(folderPath1) // 调用函数读取Excel文件
+    //对输出的Exceldata.jsonData[1]再次划分
+    if (
+      !Exceldata ||
+      !Exceldata.jsonData ||
+      !Exceldata.jsonData[0] ||
+      !Exceldata.jsonData[1] ||
+      !Exceldata.jsonData[2] ||
+      !Exceldata.jsonData[3] ||
+      !Exceldata.jsonData[4]
+    ) {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '画面修表为空！'
+      })
+      return
+    }
+    // 获取当前工作区路径POU替换输入下的文件夹
+    const folderPath2 = join(workspaceFolder, '画面修改输入')
+    const folderPath3 = join(workspaceFolder, '画面修改输出')
+    const files = getFilesInDirectory(folderPath2)
+    //*******************替换点名*****************************/
+    if (RWexcel.response === 0) {
+      const Exceldata_3d = groupByFirstColumn(Exceldata.jsonData[1])
+      if (Exceldata_3d.length === 0) {
+        await dialog.showMessageBox({
+          type: 'question',
+          title: '问题',
+          message: '请填写需要替换的点！'
+        })
+        return
+      }
+      // console.log('替换点名')
+      for (let i = 0; i < Exceldata_3d.length; i++) {
+        // 获取文件名,绝对路径
+        const file = Exceldata_3d[i][0][0] + '.mgp7'
+        const index = files.indexOf(file)
+        // console.log(file)
+        if (index === -1) {
+          continue
+        }
+        const folderPath = join(folderPath2, file)
+        // 同步读取文件内容i
+        let hmiFileContent = ''
+        // 一个互面要替换几次
+        // console.log(`dete: ${Exceldata_3d[i]}`)
+        for (let k = 4; k < Exceldata_3d[i][0].length; k++) {
+          hmiFileContent = fs.readFileSync(folderPath, 'utf8')
+          // console.log(`替换几次: ${k}`);
+          // 一个画面中有多少点要替换
+          for (let j = 1; j < Exceldata_3d[i].length; j++) {
+            // console.log(`点次数: ${j}`);
+            if (Exceldata_3d[i][j][k] !== '' && Exceldata_3d[i][j][k] !== undefined) {
+              const regex = new RegExp(Exceldata_3d[i][j][1], 'g') // 创建带全局标志的正则表达式
+              hmiFileContent = hmiFileContent.replace(regex, Exceldata_3d[i][j][k]) // 重新赋值
+            }
+          }
+          const name = new RegExp(Exceldata_3d[i][0][0], 'g') // 创建带全局标志的正则表达式
+          hmiFileContent = hmiFileContent.replace(name, k - 4 + Exceldata_3d[i][0][0]) // 替换画面名
+          // console.log('替换', Exceldata?.jsonData[i][j][0], Exceldata?.jsonData[i][j][k])
+          const outputFilePath = join(folderPath3, `${k - 4 + file}`)
+          // console.log(`路径: ${outputFilePath}`);
+          // 将文本内容写入文件
+          fs.writeFile(outputFilePath, hmiFileContent, 'utf8', (err) => {
+            if (err) {
+              console.error('文件写入错误:', err)
+            } else {
+              console.log('保存路径', outputFilePath)
+            }
+          })
+        }
+      }
+    } else if (RWexcel.response === 1) {
+      //*******************修改页面*****************************/
+      //判断画面信息是否修改
+      const Excelpage_3d = Exceldata.jsonData[0]
+      // console.log(Excelpage_3d.length)
+      for (let i = 1; i < Excelpage_3d.length; i++) {
+        // 获取文件名,绝对路径
+        const file = Excelpage_3d[i][0] + '.mgp7'
+        const folderPath = join(folderPath2, file)
+        // 1. 使用utf8编码读取文件
+        const rawData = fs.readFileSync(folderPath, 'utf8')
+        // 2. 解析外层JSON结构
+        const HmiJson = JSON.parse(rawData)
+        // console.log(HmiJson.document.pageproperty)
+        if (!HmiJson.document || !HmiJson.document.pageproperty) {
+          continue
+        }
+        HmiJson.document.pageproperty.des = Excelpage_3d[i][1]
+        HmiJson.document.pageproperty.domainno = Excelpage_3d[i][2]
+        HmiJson.document.pageproperty.area = Excelpage_3d[i][3]
+        HmiJson.document.pageproperty.author = Excelpage_3d[i][4]
+        HmiJson.document.pageproperty.company = Excelpage_3d[i][5]
+        HmiJson.document.pageproperty.showscale = Excelpage_3d[i][6]
+        HmiJson.document.pageproperty.globalconfig = Excelpage_3d[i][7]
+        HmiJson.document.pageproperty.makeAlarmPoint = Excelpage_3d[i][8]
+        HmiJson.document.pageproperty.AlarmPoint = Excelpage_3d[i][9]
+        HmiJson.document.pageproperty.symbolautoupdate = Excelpage_3d[i][10]
+        HmiJson.document.pageproperty.symbolsize = Excelpage_3d[i][11]
+        HmiJson.document.pageproperty.tempse = Excelpage_3d[i][12]
+        // 将修改后的JSON对象转换回字符串（保留2个空格缩进）
+        const updatedData = JSON.stringify(HmiJson, null, 2)
+        const folderPathout = join(folderPath3, file)
+        // 将修改后的内容写回原文件
+        fs.writeFile(folderPathout, updatedData, 'utf8', (err) => {
+          if (err) {
+            console.error('文件写入错误:', err)
+          } else {
+            console.log('保存路径', folderPathout)
+          }
+        })
+      }
+    } else if (RWexcel.response === 2) {
+      //*******************修改画面文字*****************************/
+      //判断画面文字是否修改
+      const Exceltext_3d = groupByFirstColumn(Exceldata.jsonData[2])
+      for (let i = 0; i < Exceltext_3d.length; i++) {
+        const file = Exceltext_3d[i][0][0] + '.mgp7'
+        const index_file = files.indexOf(file)
+        // console.log(file)
+        if (index_file === -1) {
+          continue
+        }
+        const folderPath = join(folderPath2, file)
+        // 1. 使用utf8编码读取文件
+        const rawData = fs.readFileSync(folderPath, 'utf8')
+        // 2. 解析外层JSON结构
+        const HmiJson = JSON.parse(rawData)
+        // 表格索引
+        let index = 0
+        for (let j = 0; j < HmiJson.document.elements.length; j++) {
+          if (
+            HmiJson.document.elements[j].type === 'Text' &&
+            HmiJson.document.elements[j].id === Exceltext_3d[i][index][2]
+          ) {
+            HmiJson.document.elements[j].name = Exceltext_3d[i][index][1]
+            HmiJson.document.elements[j].roateAngle = Exceltext_3d[i][index][3]
+            HmiJson.document.elements[j].visible = Exceltext_3d[i][index][4]
+            HmiJson.document.elements[j].authority = Exceltext_3d[i][index][5]
+            HmiJson.document.elements[j].limitForm = Exceltext_3d[i][index][6]
+            HmiJson.document.elements[j].text = Buffer.from(
+              Exceltext_3d[i][index][7],
+              'utf8'
+            ).toString('base64')
+            HmiJson.document.elements[j].textColor.startColor = Exceltext_3d[i][index][8]
+            HmiJson.document.elements[j].font = Exceltext_3d[i][index][9]
+            HmiJson.document.elements[j].textVAlign = Exceltext_3d[i][index][10]
+            HmiJson.document.elements[j].textHAlign = Exceltext_3d[i][index][11]
+            HmiJson.document.elements[j].autoFrame = Exceltext_3d[i][index][12]
+            HmiJson.document.elements[j].scalFont = Exceltext_3d[i][index][13]
+            HmiJson.document.elements[j].isVertcalText = Exceltext_3d[i][index][14]
+            HmiJson.document.elements[j].textWrap = Exceltext_3d[i][index][15]
+            index += 1
+          }
+        }
+        // 将修改后的JSON对象转换回字符串（保留2个空格缩进）
+        const updatedData = JSON.stringify(HmiJson, null, 2)
+        const folderPathout = join(folderPath3, file)
+        // 将修改后的内容写回原文件
+        fs.writeFile(folderPathout, updatedData, 'utf8', (err) => {
+          if (err) {
+            console.error('文件写入错误:', err)
+          } else {
+            console.log('保存路径', folderPathout)
+          }
+        })
+      }
+    } else if (RWexcel.response === 3) {
+      //*******************修改画面直线*****************************/
+      // //判断画面直线是否修改
+      const Excelline_3d = groupByFirstColumn(Exceldata.jsonData[3])
+      for (let i = 0; i < Excelline_3d.length; i++) {
+        const file = Excelline_3d[i][0][0] + '.mgp7'
+        const index_file = files.indexOf(file)
+        // console.log(file)
+        if (index_file === -1) {
+          continue
+        }
+        const folderPath = join(folderPath2, file)
+        // 1. 使用utf8编码读取文件
+        const rawData = fs.readFileSync(folderPath, 'utf8')
+        // 2. 解析外层JSON结构
+        const HmiJson = JSON.parse(rawData)
+        // 表格索引
+        let index = 0
+        for (let j = 0; j < HmiJson.document.elements.length; j++) {
+          if (
+            HmiJson.document.elements[j].type === 'Line' &&
+            HmiJson.document.elements[j].id === Excelline_3d[i][index][2]
+          ) {
+            HmiJson.document.elements[j].name = Excelline_3d[i][index][1]
+            HmiJson.document.elements[j].roateAngle = Excelline_3d[i][index][3]
+            HmiJson.document.elements[j].visible = Excelline_3d[i][index][4]
+            HmiJson.document.elements[j].authority = Excelline_3d[i][index][5]
+            HmiJson.document.elements[j].limitForm = Excelline_3d[i][index][6]
+            HmiJson.document.elements[j].borderColor.startColor = Excelline_3d[i][index][7]
+            HmiJson.document.elements[j].borderWidth = Excelline_3d[i][index][8]
+            HmiJson.document.elements[j].borderStyle = Excelline_3d[i][index][9]
+            HmiJson.document.elements[j].startArrowType = Excelline_3d[i][index][10]
+            HmiJson.document.elements[j].startArrowSize = Excelline_3d[i][index][11]
+            HmiJson.document.elements[j].endArrowType = Excelline_3d[i][index][12]
+            HmiJson.document.elements[j].endArrowSize = Excelline_3d[i][index][13]
+            index += 1
+          }
+        }
+        // 将修改后的JSON对象转换回字符串（保留2个空格缩进）
+        const updatedData = JSON.stringify(HmiJson, null, 2)
+        const folderPathout = join(folderPath3, file)
+        // 将修改后的内容写回原文件
+        fs.writeFile(folderPathout, updatedData, 'utf8', (err) => {
+          if (err) {
+            console.error('文件写入错误:', err)
+          } else {
+            console.log('保存路径', folderPathout)
+          }
+        })
+      }
+    } else if (RWexcel.response === 4) {
+      //*******************修改画面组合*****************************/
+      // //判断画面组合是否修改
+      const Excelgroup_3d = groupByFirstColumn(Exceldata.jsonData[4])
+      for (let i = 0; i < Excelgroup_3d.length; i++) {
+        const file = Excelgroup_3d[i][0][0] + '.mgp7'
+        const index_file = files.indexOf(file)
+        // console.log(file)
+        if (index_file === -1) {
+          continue
+        }
+        const folderPath = join(folderPath2, file)
+        // 1. 使用utf8编码读取文件
+        const rawData = fs.readFileSync(folderPath, 'utf8')
+        // 2. 解析外层JSON结构
+        const HmiJson = JSON.parse(rawData)
+        // 表格索引
+        let index = 0
+        for (let j = 0; j < HmiJson.document.elements.length; j++) {
+          if (
+            HmiJson.document.elements[j].type === 'Group' &&
+            HmiJson.document.elements[j].id === Excelgroup_3d[i][index][2]
+          ) {
+            HmiJson.document.elements[j].name = Excelgroup_3d[i][index][1]
+            HmiJson.document.elements[j].roateAngle = Excelgroup_3d[i][index][3]
+            HmiJson.document.elements[j].visible = Excelgroup_3d[i][index][4]
+            HmiJson.document.elements[j].location = Excelgroup_3d[i][index][5]
+            HmiJson.document.elements[j].authority = Excelgroup_3d[i][index][6]
+            HmiJson.document.elements[j].limitForm = Excelgroup_3d[i][index][7]
+            console.log(Excelgroup_3d[i][index].length)
+            if (HmiJson.document.elements[j].symbolInfo) {
+              for (let k = 0; k < HmiJson.document.elements[j].symbolInfo.length; k++) {
+                const pro = 7 + (k + 1) * 2
+                HmiJson.document.elements[j].symbolInfo[k].propertyDefault =
+                  Excelgroup_3d[i][index][pro]
+                HmiJson.document.elements[j].symbolInfo[k].propertyDefaultIndex =
+                  Excelgroup_3d[i][index][pro]
+              }
+            }
+            index += 1
+          }
+        }
+        // 将修改后的JSON对象转换回字符串（保留2个空格缩进）
+        const updatedData = JSON.stringify(HmiJson, null, 2)
+        const folderPathout = join(folderPath3, file)
+        // 将修改后的内容写回原文件
+        fs.writeFile(folderPathout, updatedData, 'utf8', (err) => {
+          if (err) {
+            console.error('文件写入错误:', err)
+          } else {
+            console.log('保存路径', folderPathout)
+          }
+        })
+      }
+    } else {
+      console.log('取消')
+      return
+    }
+    // 向用户显示一个消息框
+    await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '已修改画面!'
+    })
+  } catch (err) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: '错误',
+      message: `修改画面出错:${(err as Error).message}`
+    })
+  }
+}
+// 生成画面,相应IPC函数
+export async function hollysysHIM_c(): Promise<void> {
+  try {
+    const excelpath = join(global.globalpaths[0], '组态', '标准画面.xlsx')
+    if (!excelpath) {
+      await dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: '请先生成点标准画面表！'
+      })
+      return
+    }
+    // 选择替换表是读还是写
+    const RWexcel = await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '生成什么画面?',
+      buttons: ['顺控', '联锁', '取消'], // 按钮顺序影响返回值
+      defaultId: 2, // 默认选中第3个按钮（是）
+      cancelId: 2 // 按ESC时视为取消
+    })
+    if (RWexcel.response === 0) {
+      console.log('顺控')
+    } else if (RWexcel.response === 1) {
+      console.log('联锁')
+    } else {
+      console.log('取消')
+      return
+    }
+    // 向用户显示一个消息框
+    await dialog.showMessageBox({
+      type: 'info',
+      title: '信息',
+      message: '已生成画面!'
+    })
+  } catch (err) {
+    await dialog.showMessageBox({
+      type: 'error',
+      title: '错误',
+      message: `生成画面出错:${(err as Error).message}`
     })
   }
 }
@@ -1095,10 +1452,10 @@ async function createDirectory3(path3: string): Promise<void> {
     // 顺控画面
     const workbook2 = XLSX.utils.book_new()
     const worksheetData21 = [
-      ['顺控步', '阀门或泵', '阀门或泵', '阀门或泵', '描述', '模拟量显示'],
-      ['所有被控量', '1000XV001', '1000XV002', '1000P001', '1000PIC001', '1000HIC001'],
-      ['S1', '开', '开', '关', '0', '20', '第一步开阀'],
-      ['S2', '开', '关', '关', '自动', '50', '第二步关阀', '1000PT001']
+      ['顺控步', '运行时间', '阀门或泵', '阀门或泵', '阀门或泵', '描述', '模拟量显示'],
+      ['所有被控量', 'TIME01', '1000XV001', '1000XV002', '1000P001', '1000PIC001', '1000HIC001'],
+      ['S1', '5S', '开', '开', '关', '0', '20', '第一步开阀'],
+      ['S2', '20S', '开', '关', '关', '自动', '50', '第二步关阀', '1000PT001']
     ]
     const worksheet21 = XLSX.utils.aoa_to_sheet(worksheetData21)
     XLSX.utils.book_append_sheet(workbook2, worksheet21, '顺控')
@@ -1158,18 +1515,29 @@ function classification(datapath: string): void {
       // 获取工作表数据
       const worksheet = workbook.Sheets[sheetname[i]]
       // 将工作表数据转换为二维数组
-      //jsonData.push([]);
-      let sheetData: string[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][]
-      sheetData = sheetData.map((row) => [...row.slice(0, 4), sheetname[i]])
-      workbookdata.push(sheetData)
-      // jsonData.push(sheetData);
+      // 1. 读取原始数据
+      const sheetData: string[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as string[][]
+      // 2. 转置数据
+      const transposedData = transpose(sheetData)
+      // 3. 筛选需要的列（根据第一行的值）
+      const wantedColumns = transposedData.filter((col) => {
+        // 这里定义您的筛选条件
+        const header = col[1] || ''
+        return ['点名', '点描述', '站号'].includes(header)
+      })
+      // 4. 转置回原始格式
+      const filteredData = transpose(wantedColumns)
+      // 5. 添加一列类型
+      const filteredData_out = filteredData.map((row) => [...row, sheetname[i]])
+      workbookdata.push(filteredData_out)
       // console.log(sheetname[i])
     }
     // console.log(workbookdata)
     //整理数据
     const boxdata: string[][] = [
-      ['分组编号', '第一个点类型', '点名', '分类顺序:', 'AO', 'AI', 'DOV', 'DI']
+      ['分组编号', '第一个点类型', '第一个点描述', '点名', '分类顺序:', 'AO', 'AI', 'DOV', 'DI']
     ]
+    const workbookdata_out: string[][] = [['点名', '点描述', '站号', '类型']]
     for (let i = 0; i < workbookdata.length; i++) {
       for (let j = 2; j < workbookdata[i].length; j++) {
         if (
@@ -1180,29 +1548,48 @@ function classification(datapath: string): void {
         ) {
           continue
         } else {
+          // 修复后代码（精准提取PTLAF）
+          const firstPTLAF = workbookdata[i][j][0].match(/[PTLAF]/i)?.[0] ?? ''
           // 去除字母和下划线加上站号作为分组编号
-          const rawString =
-            workbookdata[i][j][3] +
+          let rawString =
+            workbookdata[i][j][2] + //站号
             '#' +
-            workbookdata[i][j][0].replace(/[a-zA-Z_]/g, '') +
-            workbookdata[i][j][0].replace(/[0-9_]/g, '')[0]
+            workbookdata[i][j][0].replace(/[a-zA-Z_]/g, '') + //单元号加位号
+            firstPTLAF //仪表类型
+          // if (workbookdata[i][j][0][-1] === 'A') rawString += 'A'
+          // 获取最后一个字符
+          const lastChar = workbookdata[i][j][0].charAt(workbookdata[i][j][0].length - 1)
+          // 检查是否为字母（A-Z, a-z）
+          if (/[a-zA-Z]/.test(lastChar)) {
+            rawString += lastChar
+          }
           // 提取已有的分组编号
           const boxNumber = boxdata.map((row) => row[0])
           // 获取索引号
           const index = boxNumber.indexOf(rawString)
-
           if (index !== -1) {
             boxdata[index].push(workbookdata[i][j][0])
           } else {
-            boxdata.push([rawString, workbookdata[i][j][4], workbookdata[i][j][0]])
+            boxdata.push([
+              rawString,
+              workbookdata[i][j][3],
+              workbookdata[i][j][1],
+              workbookdata[i][j][0]
+            ])
           }
+          //获取筛选数据表
+          workbookdata_out.push(workbookdata[i][j])
         }
       }
     }
     // 写入 Excel 文件
     const outputWorkbook = XLSX.utils.book_new()
-    const worksheet = XLSX.utils.aoa_to_sheet(boxdata)
-    XLSX.utils.book_append_sheet(outputWorkbook, worksheet, '分类数据')
+    // 创建工作表1
+    const worksheet1 = XLSX.utils.aoa_to_sheet(boxdata)
+    XLSX.utils.book_append_sheet(outputWorkbook, worksheet1, '分类数据')
+    // 创建工作表2
+    const worksheet2 = XLSX.utils.aoa_to_sheet(workbookdata_out)
+    XLSX.utils.book_append_sheet(outputWorkbook, worksheet2, '原始数据')
     const outputFilePath = join(datapath, '数据分类.xlsx')
     XLSX.writeFile(outputWorkbook, outputFilePath)
   } catch (err) {
@@ -1385,7 +1772,7 @@ function getTextFromXml(filePath: string): XmlContent | null {
           id_box_out = id_box_out ? id_box_out.slice(0, -1) : ''
           const id_data = elementm7.CFCElement?.Element['@_id'] + ',' + id_box_in + id_box_out
           idContent.push(id_data || '') // 使用 push 方法将字符串添加到数组中
-          // 组合XY坐标
+          // 组合XY坐标 //在坐标后添加运算顺序
           const position_data =
             elementm7?.CFCElement?.Element['@_PosX'] +
             ',' +
@@ -1393,7 +1780,9 @@ function getTextFromXml(filePath: string): XmlContent | null {
             ',' +
             (elementm7['@_PosX'] - elementm7?.CFCElement?.Element['@_PosX']) +
             ',' +
-            (elementm7['@_PosY'] - elementm7?.CFCElement?.Element['@_PosY'])
+            (elementm7['@_PosY'] - elementm7?.CFCElement?.Element['@_PosY']) +
+            ',' +
+            elementm7?.CFCElement['@_ExecuteOrder']
           positionContent.push(position_data || '')
           // 添加点名
           if (elementm7?.FBVarName) {
@@ -1432,7 +1821,9 @@ function getTextFromXml(filePath: string): XmlContent | null {
             ',' +
             (elementm7['@_AnchorPosX'] - elementm7?.CFCElement?.Element['@_PosX']) +
             ',' +
-            (elementm7['@_AnchorPosY'] - elementm7?.CFCElement?.Element['@_PosY'])
+            (elementm7['@_AnchorPosY'] - elementm7?.CFCElement?.Element['@_PosY']) +
+            ',' +
+            '0'
           positionContent.push(position_data || '')
           // 添加点名
           const text_data = elementm7.CFCElement?.Element['@_text']
@@ -1456,7 +1847,13 @@ function getTextFromXml(filePath: string): XmlContent | null {
           const position_data =
             elementm7?.CFCElement?.Element['@_PosX'] +
             ',' +
-            elementm7?.CFCElement?.Element['@_PosY']
+            elementm7?.CFCElement?.Element['@_PosY'] +
+            ',' +
+            '0' +
+            ',' +
+            '0' +
+            ',' +
+            elementm7?.CFCElement['@_ExecuteOrder']
           positionContent.push(position_data || '')
           // 添加点名
           const text_data = elementm7.CFCElement?.Element['@_text']
@@ -1536,9 +1933,7 @@ function getTextFromXml(filePath: string): XmlContent | null {
     return null
   }
 }
-//读取 JSON 文件中的 <text> 标签内容    已删除
-
-//创建新画面修改excel文件   （思路不清晰、未完成）
+//创建新画面修改excel文件
 function generateExcelFilesHIM(workspaceFolder: string): void {
   try {
     // 获取当前工作区路径画面修改输入下的文件夹
@@ -1553,15 +1948,16 @@ function generateExcelFilesHIM(workspaceFolder: string): void {
       return
     }
     const workbook = XLSX.utils.book_new() // 创建新的工作簿
-    const worknames = ['画面信息', '文字', '直线', '组合']
+    const worknames = ['画面信息', '画面点', '文字', '直线', '组合']
     // eslint-disable-next-line prettier/prettier
-    const worksheetDatas = [['页面名称', '描述', '域号', '屏幕尺寸', '画面大小', '画面区域', '作者', '公司', '显示刻度', '全局配置', '是否生成报警点', '报警点', '符号更新', '符号大小', '模板'],
+    const worksheetDatas = [['页面名称', '描述', '域号', '画面区域', '作者', '公司', '显示刻度', '全局配置', '是否生成报警点', '报警点', '符号更新', '符号大小', '模板'],
+      ['页面名称', '点名', '项名', '域号', '新点名'],
       // eslint-disable-next-line prettier/prettier
-      ['页面名称', '对象名称', '旋转角度', '是否显示', '权限限制','禁操方式','文字内容', '文字颜色', '字体', '垂直对齐', '水平对齐', '自适应框', '缩放字体', '竖排文字', '换行'],
+      ['页面名称', '对象名称', 'ID', '旋转角度', '是否显示', '权限限制','禁操方式','文字内容', '文字颜色', '字体', '垂直对齐', '水平对齐', '自适应框', '缩放字体', '竖排文字', '换行'],
       // eslint-disable-next-line prettier/prettier
-      ['页面名称', '对象名称', '旋转角度', '是否显示', '权限限制','禁操方式','边框颜色', '边框宽度', '边框样式', '左箭头样式', '左箭头大小', '右箭头样式', '右箭头大小'],
+      ['页面名称', '对象名称', 'ID', '旋转角度', '是否显示', '权限限制','禁操方式','边框颜色', '边框宽度', '边框样式', '左箭头样式', '左箭头大小', '右箭头样式', '右箭头大小'],
       // eslint-disable-next-line prettier/prettier
-      ['页面名称', '对象名称', '旋转角度', '是否显示', '符号库连接', '权限限制','禁操方式','属性1', '属性2', '属性3', '属性4', '属性5', '属性...']]
+      ['页面名称', '对象名称', 'ID', '旋转角度', '是否显示', '符号库连接', '权限限制','禁操方式','属性名1', '属性值1', '属性名2', '属性值2', '属性名..', '属性值..']]
     // 读取数据
     const HmiContent: HmiContent[] = [] // 使用let并初始化;
     for (const file of files) {
@@ -1582,12 +1978,15 @@ function generateExcelFilesHIM(workspaceFolder: string): void {
           worksheetData.push(HmiContent[j].pageContent)
         }
         if (i === 1) {
-          worksheetData.push(...HmiContent[j].textContent)
+          worksheetData.push(...HmiContent[j].tageContent)
         }
         if (i === 2) {
-          worksheetData.push(...HmiContent[j].lineContent)
+          worksheetData.push(...HmiContent[j].textContent)
         }
         if (i === 3) {
+          worksheetData.push(...HmiContent[j].lineContent)
+        }
+        if (i === 4) {
           worksheetData.push(...HmiContent[j].groupContent)
         }
       }
@@ -1606,7 +2005,7 @@ function generateExcelFilesHIM(workspaceFolder: string): void {
     })
   }
 }
-//读取 MGP7 文件中的 <text> 标签内容    （思路不清晰、未完成）
+//读取 MGP7 文件中的 <text> 标签内容
 function getTextFromHMI(filePath: string): HmiContent {
   try {
     // 1. 使用utf8编码读取文件
@@ -1615,15 +2014,116 @@ function getTextFromHMI(filePath: string): HmiContent {
     const HmiJson = JSON.parse(rawData)
     // 3. 解析内部pou字段的JSON字符串
     // const poujson = JSON.parse(outerJson.pou);
-    // console.log('读取JSON', JSON.stringify(HmiJson, null, 2))
-    console.log('读取JSON', HmiJson)
-    // 检查 json.pou.cfc 是否存在
     const pageContent: string[] = [] // 页面
+    const tageContent: string[][] = [] // 页面点
     const textContent: string[][] = [] // 文字
     const lineContent: string[][] = [] // 直线
     const groupContent: string[][] = [] // 组合
-    // 提取 <text> 标签的内容
-    return { pageContent, textContent, lineContent, groupContent }
+    // 检查 mgp7文件格式
+    if (!HmiJson.document || !HmiJson.document.pageproperty) {
+      dialog.showMessageBox({
+        type: 'question',
+        title: '问题',
+        message: `${filePath}mgp7文件格式不正确!`
+      })
+      return { pageContent, tageContent, textContent, lineContent, groupContent }
+    }
+    // ***************提取 <text> 标签的内容************************
+    // 提取页面信息
+    const page_str = [
+      HmiJson.document.pageproperty.name,
+      HmiJson.document.pageproperty.des,
+      HmiJson.document.pageproperty.domainno,
+      HmiJson.document.pageproperty.area,
+      HmiJson.document.pageproperty.author,
+      HmiJson.document.pageproperty.company,
+      HmiJson.document.pageproperty.showscale,
+      HmiJson.document.pageproperty.globalconfig,
+      HmiJson.document.pageproperty.makeAlarmPoint,
+      HmiJson.document.pageproperty.AlarmPoint,
+      HmiJson.document.pageproperty.symbolautoupdate,
+      HmiJson.document.pageproperty.symbolsize,
+      HmiJson.document.pageproperty.tempsel
+    ]
+    pageContent.push(...page_str)
+    // 提取画面对象
+    // console.log(HmiJson.document.pageproperty.name)
+    for (const item of HmiJson.document.elements) {
+      // console.log(item.type)
+      if (item.type === 'Text') {
+        const text_str = [
+          HmiJson.document.pageproperty.name,
+          item.name,
+          item.id,
+          item.roateAngle,
+          item.visible,
+          item.authority,
+          item.limitForm,
+          Buffer.from(item.text, 'base64').toString('utf8'),
+          item.textColor.startColor,
+          item.font,
+          item.textVAlign,
+          item.textHAlign,
+          item.autoFrame,
+          item.scalFont,
+          item.isVertcalText,
+          item.textWrap
+        ]
+        textContent.push(text_str)
+      } else if (item.type === 'Line') {
+        const line_str = [
+          HmiJson.document.pageproperty.name,
+          item.name,
+          item.id,
+          item.roateAngle,
+          item.visible,
+          item.authority,
+          item.limitForm,
+          item.borderColor.startColor,
+          item.borderWidth,
+          item.borderStyle,
+          item.startArrowType,
+          item.startArrowSize,
+          item.endArrowType,
+          item.endArrowSize
+        ]
+        lineContent.push(line_str)
+      } else if (item.type === 'Group') {
+        const group_str = [
+          HmiJson.document.pageproperty.name,
+          item.name,
+          item.id,
+          item.roateAngle,
+          item.visible,
+          item.location,
+          item.authority,
+          item.limitForm
+        ]
+        if (item.symbolInfo) {
+          for (const symbol of item.symbolInfo) {
+            group_str.push(symbol.propertyDes)
+            group_str.push(symbol.propertyDefault)
+          }
+        }
+        groupContent.push(group_str)
+        // console.log(item.id, typeof item.symbolInfo)
+      }
+    }
+    // 提取画面点名
+    const tage_str = HmiJson.document.dynaTagInfo.map((item: string) => {
+      const arr = item.split(',')
+      return arr
+    })
+    // 合并第一列相同的数据
+    const mergedTageStr = mergeRowsByFirst(tage_str)
+    // 添加页名
+    const finalTageStr = mergedTageStr.map((arr) => {
+      const newArr = [...arr]
+      newArr.unshift(HmiJson.document.pageproperty.name)
+      return newArr
+    })
+    tageContent.push(...finalTageStr)
+    return { pageContent, tageContent, textContent, lineContent, groupContent }
   } catch (err) {
     dialog.showMessageBox({
       type: 'error',
@@ -1632,6 +2132,7 @@ function getTextFromHMI(filePath: string): HmiContent {
     })
     return {
       pageContent: [],
+      tageContent: [],
       textContent: [],
       lineContent: [],
       groupContent: []
@@ -1834,20 +2335,7 @@ function generateXmlFilem7(filePath: string, json: any): void {
     })
   }
 }
-// 将EXCEL输入框的输入id字符串转换为二维数组，用于典型回路
-function unflattenInputidxContent(
-  flattenedInputidxContent: (string | null | undefined)[]
-): string[][] {
-  if (!Array.isArray(flattenedInputidxContent)) {
-    return [] // 防止非数组输入
-  }
-  return flattenedInputidxContent.map((str) => {
-    if (typeof str !== 'string') {
-      return [''] // 处理非字符串值
-    }
-    return str.split(',').map((item) => item.trim())
-  })
-}
+
 // 将 Excel 内容转换为典型回路 XML 的结构数据   M6  M7
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function excelToXmlContent(excel: ExcelContent): any {
@@ -1880,7 +2368,7 @@ function excelToXmlContent(excel: ExcelContent): any {
         maxid_ele = Math.max(...sheetid.map(Number)) //取最大ID然后累加
         // console.log('最大XMLID',maxid_ele);
       } else if (m6orm7 === 'M7') {
-        const json_id = unflattenInputidxContent(sheetid) //将输入的数组转换为二维数组
+        const json_id = unflattenInputidx(sheetid) //将输入的数组转换为二维数组
         const id_ele: string[] = []
         for (let j = 0; j < json_id.length; j++) {
           id_ele.push(json_id[j][0])
@@ -1891,15 +2379,17 @@ function excelToXmlContent(excel: ExcelContent): any {
         // console.log('最大JSONID',maxid_ele,maxid_pin);
         // maxid_ele = Math.max(...sheetid.map(Number)); //取最大ID然后累加
       }
-      // 计算X,Y坐标的Y的最大值
+      // 计算X,Y坐标的Y的最大值 //计算最大的运行序号
       const sheetposit = excel.jsonData[i][2]
       let maxy = -Infinity
+      let max_order = -Infinity
       if (sheetposit && sheetposit.length > 0) {
         for (let n = 0; n < sheetposit.length; n++) {
           // 遍历数组
           if (typeof sheetposit[n] === 'string') {
             const parts = sheetposit[n].split(',')
             const numberAfterComma = parseInt(parts[1], 10) // 转换为数字
+            const number_order = parseInt(parts[4], 10) // 转换为数字
             // 比较并记录最大值
             if (numberAfterComma > maxy) {
               if (m6orm7 === 'M6') {
@@ -1907,6 +2397,9 @@ function excelToXmlContent(excel: ExcelContent): any {
               } else if (m6orm7 === 'M7') {
                 maxy = numberAfterComma + 50 //Macs7预留50个像素
               }
+            }
+            if (number_order > max_order) {
+              max_order = number_order
             }
           } else {
             dialog.showMessageBox({
@@ -1916,6 +2409,8 @@ function excelToXmlContent(excel: ExcelContent): any {
             })
           }
         }
+        //执行顺序是从0开始的，要加1
+        max_order = max_order + 1
       } else {
         dialog.showMessageBox({
           type: 'question',
@@ -1923,7 +2418,7 @@ function excelToXmlContent(excel: ExcelContent): any {
           message: `表格位置为空`
         })
       }
-      const sheetinputidx = unflattenInputidxContent(excel.jsonData[i][3])
+      const sheetinputidx = unflattenInputidx(excel.jsonData[i][3])
       //开始数据替换计算,从6开始
       //console.log('表格行数',excel.jsonData[i].length);
       if (excel.jsonData[i].length > 5) {
@@ -1951,7 +2446,7 @@ function excelToXmlContent(excel: ExcelContent): any {
             if (m6orm7 === 'M6') {
               newJson[i][xml].idContent.push(...sheetid.map((item) => item + maxid_ele * index))
             } else if (m6orm7 === 'M7') {
-              const json_id = unflattenInputidxContent(sheetid) //将输入的数组转换为二维数组
+              const json_id = unflattenInputidx(sheetid) //将输入的数组转换为二维数组
               for (let j = 0; j < json_id.length; j++) {
                 let id_str = ''
                 for (let k = 0; k < json_id[j].length; k++) {
@@ -1972,22 +2467,20 @@ function excelToXmlContent(excel: ExcelContent): any {
                 )
               )
             } else if (m6orm7 === 'M7') {
-              const json_xy = unflattenInputidxContent(sheetposit) //将输入的数组转换为二维数组
+              const json_xy = unflattenInputidx(sheetposit) //将输入的数组转换为二维数组
               for (let j = 0; j < json_xy.length; j++) {
-                let xy_str = ''
-                if (json_xy[j].length === 4) {
-                  xy_str =
-                    json_xy[j][0] +
-                    ',' +
-                    (Number(json_xy[j][1]) + maxy * index) +
-                    ',' +
-                    json_xy[j][2] +
-                    ',' +
-                    json_xy[j][3]
-                } else {
-                  xy_str = json_xy[j][0] + ',' + (Number(json_xy[j][1]) + maxy * index)
-                }
+                const xy_str =
+                  json_xy[j][0] +
+                  ',' +
+                  (Number(json_xy[j][1]) + maxy * index) +
+                  ',' +
+                  json_xy[j][2] +
+                  ',' +
+                  json_xy[j][3] +
+                  ',' +
+                  (Number(json_xy[j][4]) + max_order * index)
                 newJson[i][xml].positionContent.push(xy_str)
+                // console.log('aaaaa', xy_str)
               }
             }
             //添加输入引脚的Idx
@@ -2160,6 +2653,8 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
       if (!Array.isArray(cfcBoxes)) {
         cfcBoxes = cfcBoxes ? [cfcBoxes] : []
       }
+      // BOx种类很多，要进一步区分
+      const box_length = cfcBoxes.length
       cfcBoxes = Array(pidCount)
         .fill(null)
         .flatMap(() => JSON.parse(JSON.stringify(cfcBoxes)))
@@ -2184,9 +2679,9 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
         .flatMap(() => JSON.parse(JSON.stringify(cfcOutputs)))
       jsonM7.pou.PouData.CFCElementList.CFCOutput = cfcOutputs
       // 将ID数组，转化为二维数组
-      const newJson_idContent = unflattenInputidxContent(newJson.idContent)
+      const newJson_idContent = unflattenInputidx(newJson.idContent)
       // 将XY坐标数组，转化为二维数组
-      const newJson_positionContent = unflattenInputidxContent(newJson.positionContent)
+      const newJson_positionContent = unflattenInputidx(newJson.positionContent)
       //***************开始替换************************/
       let box_count = 0
       let input_count = 0
@@ -2194,7 +2689,12 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
       for (let i = 0; i < cfclength; i++) {
         // console.log('i', i)
         if (newJson.typeContent[i] === 'CFCBox') {
+          if (box_count >= pidCount * box_length) {
+            box_count = box_count - pidCount * box_length + 1
+          }
+          // console.log('CFCBox', i)
           for (let j = 0; j < pidCount; j++) {
+            // console.log('box_count', box_count)
             const index = cfclength * j + i
             // console.log('CFCBox', newJson_idContent[index])
             // 修改点名
@@ -2220,6 +2720,10 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
               jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].InputPinList.InputPin[q].CFCPin[
                 '@_PinId'
               ] = Number(newJson_idContent[index][id_box])
+              //修改引脚归宿的父ID
+              jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].InputPinList.InputPin[q].CFCPin[
+                '@_ParentID'
+              ] = Number(newJson_idContent[index][0])
             }
             const out_length =
               jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].OutputPinList.CFCOutputPin.length
@@ -2230,6 +2734,10 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
               jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].OutputPinList.CFCOutputPin[
                 q
               ].CFCPin['@_PinId'] = Number(newJson_idContent[index][id_box])
+              //修改引脚归宿的父ID
+              jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].OutputPinList.CFCOutputPin[
+                q
+              ].CFCPin['@_ParentID'] = Number(newJson_idContent[index][0])
             }
             //修改XY坐标
             jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].CFCElement.Element['@_PosX'] =
@@ -2240,6 +2748,9 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
               Number(newJson_positionContent[index][0]) + Number(newJson_positionContent[index][2])
             jsonM7.pou.PouData.CFCElementList.CFCBox[box_count]['@_PosY'] =
               Number(newJson_positionContent[index][1]) + Number(newJson_positionContent[index][3])
+            //修改运算顺序
+            jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].CFCElement['@_ExecuteOrder'] =
+              Number(newJson_positionContent[index][4])
             // 引脚连接
             const pin_length =
               jsonM7.pou.PouData.CFCElementList.CFCBox[box_count].InputPinList.InputPin.length
@@ -2256,7 +2767,7 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
                 //console.log('引脚连接', element[elementType].CFCInputPinList[q].CFCInputPin.CFCPin.PinName,Number(newJson.inputidxContent[i][q]));
               }
             }
-            box_count += 1
+            box_count += box_length
           }
         } else if (newJson.typeContent[i] === 'CFCInput') {
           for (let j = 0; j < pidCount; j++) {
@@ -2270,6 +2781,9 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
               Number(newJson_idContent[index][0])
             jsonM7.pou.PouData.CFCElementList.CFCInput[input_count].CFCOutputPin.CFCPin['@_PinId'] =
               Number(newJson_idContent[index][1])
+            jsonM7.pou.PouData.CFCElementList.CFCInput[input_count].CFCOutputPin.CFCPin[
+              '@_ParentID'
+            ] = Number(newJson_idContent[index][0])
             //修改XY坐标
             jsonM7.pou.PouData.CFCElementList.CFCInput[input_count].CFCElement.Element['@_PosX'] =
               Number(newJson_positionContent[index][0])
@@ -2297,11 +2811,17 @@ function addTextInXmlm7(filePath: string, newJson: XmlContent, cfclength: number
               Number(newJson_idContent[index][0])
             jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].InputPin.CFCPin['@_PinId'] =
               Number(newJson_idContent[index][1])
+            jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].InputPin.CFCPin[
+              '@_ParentID'
+            ] = Number(newJson_idContent[index][0])
             //修改XY坐标
             jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].CFCElement.Element['@_PosX'] =
               Number(newJson_positionContent[index][0])
             jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].CFCElement.Element['@_PosY'] =
               Number(newJson_positionContent[index][1])
+            //修改运算顺序
+            jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].CFCElement['@_ExecuteOrder'] =
+              Number(newJson_positionContent[index][4])
             // 引脚连接
             jsonM7.pou.PouData.CFCElementList.CFCOutput[output_count].InputPin['@_RefPinId'] =
               Number(newJson.inputidxContent[index][0])
